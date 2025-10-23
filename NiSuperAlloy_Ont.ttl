@@ -1,0 +1,261 @@
+@prefix : <http://www.semanticweb.org/alexlecu/ontologies/nisuperalloy#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xml: <http://www.w3.org/XML/1998/namespace> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+###############################################################################
+#
+#    ONTOLOGY METADATA
+#
+###############################################################################
+
+<http://www.semanticweb.org/alexlecu/ontologies/nisuperalloy> rdf:type owl:Ontology ;
+    rdfs:label "Nickel-Based Superalloy Ontology"@en ;
+    rdfs:comment "Ontology for AI-augmented design of nickel-based superalloys, capturing composition, mechanical properties, and physical properties"@en ;
+    owl:versionInfo "1.0.0" .
+
+###############################################################################
+#
+#    ANNOTATION PROPERTIES
+#
+###############################################################################
+
+rdfs:label rdf:type owl:AnnotationProperty .
+rdfs:comment rdf:type owl:AnnotationProperty .
+owl:versionInfo rdf:type owl:AnnotationProperty .
+
+###############################################################################
+#
+#    CLASSES - MATERIALS
+#
+###############################################################################
+
+:NickelBasedSuperalloy rdf:type owl:Class ;
+    rdfs:label "Nickel-Based Superalloy"@en ;
+    rdfs:comment "High-performance alloy with nickel as the primary constituent (typically >30 wt%), designed for high-temperature structural applications with exceptional mechanical strength and corrosion resistance"@en .
+
+###############################################################################
+#
+#    CLASSES - COMPOSITION
+#
+###############################################################################
+
+:ChemicalElement rdf:type owl:Class ;
+    rdfs:label "Chemical Element"@en ;
+    rdfs:comment "Pure chemical element from the periodic table that can be a constituent of an alloy"@en .
+
+:CompositionConstraint rdf:type owl:Class ;
+    rdfs:label "Composition Constraint"@en ;
+    rdfs:comment "Specification defining the concentration of a chemical element in an alloy, expressed as weight percentage. Can be a single value, a minimum value (≥), a maximum value (≤), or a range (min-max)"@en .
+
+###############################################################################
+#
+#    CLASSES - MECHANICAL PROPERTIES
+#
+###############################################################################
+
+:MechanicalProperty rdf:type owl:Class ;
+    rdfs:label "Mechanical Property"@en ;
+    rdfs:comment "Property describing the mechanical behavior of a material under applied forces or loads"@en .
+
+:TensileStrength rdf:type owl:Class ;
+    rdfs:subClassOf :MechanicalProperty ;
+    rdfs:label "Tensile Strength"@en ;
+    rdfs:comment "Maximum stress that a material can withstand while being stretched or pulled before failure (Ultimate Tensile Strength, UTS)"@en .
+
+:YieldStrength rdf:type owl:Class ;
+    rdfs:subClassOf :MechanicalProperty ;
+    rdfs:label "Yield Strength"@en ;
+    rdfs:comment "Stress at which a material begins to deform plastically, typically measured at 0.2% offset"@en .
+
+:Elongation rdf:type owl:Class ;
+    rdfs:subClassOf :MechanicalProperty ;
+    rdfs:label "Elongation"@en ;
+    rdfs:comment "Percentage increase in length of a specimen before fracture, indicating material ductility"@en .
+
+:Hardness rdf:type owl:Class ;
+    rdfs:subClassOf :MechanicalProperty ;
+    rdfs:label "Hardness"@en ;
+    rdfs:comment "Resistance to localized plastic deformation induced by mechanical indentation or abrasion"@en .
+
+:ElasticModulus rdf:type owl:Class ;
+    rdfs:subClassOf :MechanicalProperty ;
+    rdfs:label "Elastic Modulus"@en ;
+    rdfs:comment "Young's modulus - ratio of stress to strain in the elastic deformation region, indicating material stiffness"@en .
+
+###############################################################################
+#
+#    CLASSES - PHYSICAL PROPERTIES
+#
+###############################################################################
+
+:PhysicalProperty rdf:type owl:Class ;
+    rdfs:label "Physical Property"@en ;
+    rdfs:comment "Property describing the physical characteristics of a material"@en .
+
+:Density rdf:type owl:Class ;
+    rdfs:subClassOf :PhysicalProperty ;
+    rdfs:label "Density"@en ;
+    rdfs:comment "Mass per unit volume of a material"@en .
+
+:MeltingRange rdf:type owl:Class ;
+    rdfs:subClassOf :PhysicalProperty ;
+    rdfs:label "Melting Range"@en ;
+    rdfs:comment "Temperature range over which a material transitions from solid to liquid phase"@en .
+
+:ThermalConductivity rdf:type owl:Class ;
+    rdfs:subClassOf :PhysicalProperty ;
+    rdfs:label "Thermal Conductivity"@en ;
+    rdfs:comment "Ability of a material to conduct heat, measured as heat flux per unit temperature gradient"@en .
+
+:CoefficientOfThermalExpansion rdf:type owl:Class ;
+    rdfs:subClassOf :PhysicalProperty ;
+    rdfs:label "Coefficient of Thermal Expansion"@en ;
+    rdfs:comment "Fractional change in size of a material per degree change in temperature (linear CTE)"@en .
+
+:ElectricalResistivity rdf:type owl:Class ;
+    rdfs:subClassOf :PhysicalProperty ;
+    rdfs:label "Electrical Resistivity"@en ;
+    rdfs:comment "Measure of how strongly a material opposes the flow of electric current"@en .
+
+###############################################################################
+#
+#    OBJECT PROPERTIES - COMPOSITION
+#
+###############################################################################
+
+:hasCompositionConstraint rdf:type owl:ObjectProperty ;
+    rdfs:domain :NickelBasedSuperalloy ;
+    rdfs:range :CompositionConstraint ;
+    rdfs:label "has composition constraint"@en ;
+    rdfs:comment "Links an alloy to its compositional specification for a particular element"@en .
+
+:hasElement rdf:type owl:ObjectProperty ;
+    rdfs:domain :CompositionConstraint ;
+    rdfs:range :ChemicalElement ;
+    rdfs:label "has element"@en ;
+    rdfs:comment "Specifies which chemical element a composition constraint applies to"@en .
+
+###############################################################################
+#
+#    OBJECT PROPERTIES - PROPERTIES
+#
+###############################################################################
+
+:hasMechanicalProperty rdf:type owl:ObjectProperty ;
+    rdfs:domain :NickelBasedSuperalloy ;
+    rdfs:range :MechanicalProperty ;
+    rdfs:label "has mechanical property"@en ;
+    rdfs:comment "Links an alloy to one of its mechanical property measurements"@en .
+
+:hasPhysicalProperty rdf:type owl:ObjectProperty ;
+    rdfs:domain :NickelBasedSuperalloy ;
+    rdfs:range :PhysicalProperty ;
+    rdfs:label "has physical property"@en ;
+    rdfs:comment "Links an alloy to one of its physical property measurements"@en .
+
+###############################################################################
+#
+#    DATA PROPERTIES - COMPOSITION
+#
+###############################################################################
+
+:minWeightPercent rdf:type owl:DatatypeProperty ;
+    rdfs:domain :CompositionConstraint ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "minimum weight percent"@en ;
+    rdfs:comment "Minimum acceptable weight percentage of an element in the alloy composition. Use this for specifications like '≥72.0' or for the lower bound of ranges like '14.0-17.0'"@en .
+
+:maxWeightPercent rdf:type owl:DatatypeProperty ;
+    rdfs:domain :CompositionConstraint ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "maximum weight percent"@en ;
+    rdfs:comment "Maximum acceptable weight percentage of an element in the alloy composition. Use this for specifications like '≤5.0' or for the upper bound of ranges like '14.0-17.0'"@en .
+
+:nominalWeightPercent rdf:type owl:DatatypeProperty ;
+    rdfs:domain :CompositionConstraint ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "nominal weight percent"@en ;
+    rdfs:comment "Exact or typical weight percentage of an element in the alloy composition. Use this for single exact values"@en .
+
+###############################################################################
+#
+#    DATA PROPERTIES - PROPERTY VALUES
+#
+###############################################################################
+
+:value rdf:type owl:DatatypeProperty ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "value"@en ;
+    rdfs:comment "Single exact numerical value for a property measurement. Use this when you have one specific value (e.g., Elongation = 20%, Density = 8.47 g/cm³)"@en .
+
+:minValue rdf:type owl:DatatypeProperty ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "minimum value"@en ;
+    rdfs:comment "Minimum value in a property range specification. Use this for the lower bound when you have ranges (e.g., Tensile Strength 550-620 MPa, use minValue=550)"@en .
+
+:maxValue rdf:type owl:DatatypeProperty ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "maximum value"@en ;
+    rdfs:comment "Maximum value in a property range specification. Use this for the upper bound when you have ranges (e.g., Tensile Strength 550-620 MPa, use maxValue=620)"@en .
+
+:unit rdf:type owl:DatatypeProperty ;
+    rdfs:range xsd:string ;
+    rdfs:label "unit"@en ;
+    rdfs:comment "Unit of measurement for a property value (e.g., 'MPa', 'GPa', 'g/cm³', '°C', 'W/m·K', '%', 'μm/m·°C', 'μΩ·m')"@en .
+
+###############################################################################
+#
+#    DATA PROPERTIES - HARDNESS
+#
+###############################################################################
+
+:hardnessScale rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Hardness ;
+    rdfs:range xsd:string ;
+    rdfs:label "hardness scale"@en ;
+    rdfs:comment "Rockwell hardness scale used for measurement. Use 'B' for Rockwell B scale or 'C' for Rockwell C scale"@en .
+
+###############################################################################
+#
+#    DATA PROPERTIES - IDENTIFICATION
+#
+###############################################################################
+
+:hasTradeDesignation rdf:type owl:DatatypeProperty ;
+    rdfs:domain :NickelBasedSuperalloy ;
+    rdfs:range xsd:string ;
+    rdfs:label "has trade designation"@en ;
+    rdfs:comment "Commercial trade name or designation (e.g., 'Inconel 718', 'Waspaloy', 'CMSX-4')"@en .
+
+:hasUNSNumber rdf:type owl:DatatypeProperty ;
+    rdfs:domain :NickelBasedSuperalloy ;
+    rdfs:range xsd:string ;
+    rdfs:label "has UNS number"@en ;
+    rdfs:comment "Unified Numbering System designation (e.g., 'N07718' for Inconel 718)"@en .
+
+###############################################################################
+#
+#    DATA PROPERTIES - MELTING RANGE
+#
+###############################################################################
+
+:meltingRangeMin rdf:type owl:DatatypeProperty ;
+    rdfs:domain :MeltingRange ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "melting range minimum"@en ;
+    rdfs:comment "Minimum temperature of the melting range in degrees Celsius"@en .
+
+:meltingRangeMax rdf:type owl:DatatypeProperty ;
+    rdfs:domain :MeltingRange ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "melting range maximum"@en ;
+    rdfs:comment "Maximum temperature of the melting range in degrees Celsius"@en .
+
+###############################################################################
+#
+#    END OF ONTOLOGY
+#
+###############################################################################
