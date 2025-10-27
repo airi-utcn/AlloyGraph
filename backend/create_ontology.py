@@ -7,7 +7,7 @@ from owlready2 import (
 BASE_IRI = "http://www.semanticweb.org/alexlecu/ontologies/nisuperalloy"
 SAVE      = os.getenv("SAVE_ONTOLOGY", "1")
 SAVE_FMT  = os.getenv("SAVE_FORMAT", "rdfxml")
-OUT_PATH  = os.getenv("ONTO_OUT", "NiSuperAlloy_Ont_GEN.rdf")
+OUT_PATH  = os.getenv("ONTO_OUT", "../Data/Ontology/NiSuperAlloy_Ont_GEN.rdf")
 REASONER  = os.getenv("REASONER", "hermit")
 
 def build_ontology():
