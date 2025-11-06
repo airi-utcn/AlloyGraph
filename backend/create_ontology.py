@@ -14,8 +14,13 @@ def build_ontology():
     onto = get_ontology(BASE_IRI)
     with onto:
 
-        # ---------- Classes ----------
         class NickelBasedSuperalloy(Thing):
+            pass
+
+        class Variant(Thing):
+            pass
+
+        class PropertySet(Thing):
             pass
 
         class Composition(Thing):
@@ -51,10 +56,25 @@ def build_ontology():
         class Quantity(Thing):
             pass
 
-        # ---------- Object Properties ----------
         class hasComposition(ObjectProperty):
             domain = [NickelBasedSuperalloy]
             range  = [Composition]
+
+        class hasVariant(ObjectProperty):
+            domain = [NickelBasedSuperalloy]
+            range  = [Variant]
+
+        class hasPropertySet(ObjectProperty):
+            domain = [Variant]
+            range  = [PropertySet]
+
+        class measuresProperty(ObjectProperty):
+            domain = [PropertySet]
+            range  = [MechanicalProperty]
+
+        class hasMeasurement(ObjectProperty):
+            domain = [PropertySet]
+            range  = [Measurement]
 
         class hasComponent(ObjectProperty):
             domain = [Composition]
@@ -68,19 +88,14 @@ def build_ontology():
             domain = [CompositionEntry]
             range  = [Quantity]
 
-        class hasMeasurement(ObjectProperty):
-            domain = [NickelBasedSuperalloy]
-            range  = [Measurement]
-
-        class measures(ObjectProperty):
-            domain = [Measurement]
-            range  = [MechanicalProperty]
-
         class hasQuantity(ObjectProperty):
             domain = [Measurement]
             range  = [Quantity]
 
-        # ---------- Data Properties ----------
+        class hasTestTemperature(ObjectProperty):
+            domain = [Measurement]
+            range  = [Quantity]
+
         class tradeDesignation(DataProperty):
             domain = [NickelBasedSuperalloy]
             range  = [str]
@@ -89,7 +104,18 @@ def build_ontology():
             domain = [NickelBasedSuperalloy]
             range  = [str]
 
-        # Quantity data
+        class variantName(DataProperty):
+            domain = [Variant]
+            range  = [str]
+
+        class processingMethod(DataProperty):
+            domain = [Variant]
+            range  = [str]
+
+        class sourceUrl(DataProperty):
+            domain = [Variant]
+            range  = [str]
+
         class numericValue(DataProperty):
             domain = [Quantity]
             range  = [float]
@@ -114,7 +140,14 @@ def build_ontology():
             domain = [Quantity]
             range  = [bool]
 
-        # Composition helpers
+        class qualifier(DataProperty):
+            domain = [Quantity]
+            range  = [str]
+
+        class rawString(DataProperty):
+            domain = [Quantity]
+            range  = [str]
+
         class isBalanceRemainder(DataProperty):
             domain = [CompositionEntry]
             range  = [bool]
@@ -123,22 +156,29 @@ def build_ontology():
             domain = [Composition]
             range  = [str]
 
-        # ---------- Cardinality restrictions ----------
-        # CompositionEntry: exactly 1 element; at most 1 mass fraction
+        class heatTreatmentCondition(DataProperty):
+            domain = [Measurement]
+            range  = [str]
+
+        class temperatureCategory(DataProperty):
+            domain = [Measurement]
+            range  = [str]
+
         CompositionEntry.is_a.append(element.exactly(1, Element))
         CompositionEntry.is_a.append(hasMassFraction.max(1, Quantity))
 
-        # Measurement: exactly 1 property kind; exactly 1 quantity
-        Measurement.is_a.append(measures.exactly(1, MechanicalProperty))
+        PropertySet.is_a.append(measuresProperty.exactly(1, MechanicalProperty))
+
         Measurement.is_a.append(hasQuantity.exactly(1, Quantity))
 
-        # ---------- Ontology metadata ----------
         onto.metadata.label.append("Ni Superalloy Ontology")
         onto.metadata.comment.append(
             "Ni-based superalloy ontology using an n-ary pattern for composition and mechanical properties. "
-            "Quantities support exact values, ranges, inequalities and unit/scale strings."
+            "Quantities support exact values, ranges, inequalities and unit/scale strings. "
+            "Variants represent different forms and processing conditions of the same base alloy. "
+            "PropertySets group multiple measurements of the same property type (e.g., temperature-dependent data)."
         )
-        onto.metadata.versionInfo.append("7.0.0")
+        onto.metadata.versionInfo.append("9.0.0")
 
     return onto
 
@@ -162,7 +202,6 @@ def main():
         onto.save(file=OUT_PATH, format=SAVE_FMT)
         print(f"Saved ontology to {OUT_PATH} ({SAVE_FMT})")
     else:
-
         g = default_world.as_rdflib_graph()
         print(f"In-memory triples (asserted + inferred): {len(g)}")
 
