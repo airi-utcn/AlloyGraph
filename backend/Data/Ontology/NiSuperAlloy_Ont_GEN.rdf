@@ -72,6 +72,26 @@
   <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
 </owl:DatatypeProperty>
 
+<owl:DatatypeProperty rdf:about="#family">
+  <rdfs:domain rdf:resource="#NickelBasedSuperalloy"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#density">
+  <rdfs:domain rdf:resource="#NickelBasedSuperalloy"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#decimal"/>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#gammaPrimeVolPct">
+  <rdfs:domain rdf:resource="#NickelBasedSuperalloy"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#decimal"/>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#typicalHeatTreatment">
+  <rdfs:domain rdf:resource="#NickelBasedSuperalloy"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+</owl:DatatypeProperty>
+
 <owl:DatatypeProperty rdf:about="#variantName">
   <rdfs:domain rdf:resource="#Variant"/>
   <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
@@ -147,6 +167,16 @@
   <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
 </owl:DatatypeProperty>
 
+<owl:DatatypeProperty rdf:about="#stress">
+  <rdfs:domain rdf:resource="#Measurement"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#decimal"/>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#lifeHours">
+  <rdfs:domain rdf:resource="#Measurement"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#decimal"/>
+</owl:DatatypeProperty>
+
 <owl:Class rdf:about="#NickelBasedSuperalloy">
   <rdfs:subClassOf rdf:resource="http://www.w3.org/2002/07/owl#Thing"/>
 </owl:Class>
@@ -213,6 +243,14 @@
 </owl:Class>
 
 <owl:Class rdf:about="#ElasticModulus">
+  <rdfs:subClassOf rdf:resource="#MechanicalProperty"/>
+</owl:Class>
+
+<owl:Class rdf:about="#CreepRupture">
+  <rdfs:subClassOf rdf:resource="#MechanicalProperty"/>
+</owl:Class>
+
+<owl:Class rdf:about="#ReductionOfArea">
   <rdfs:subClassOf rdf:resource="#MechanicalProperty"/>
 </owl:Class>
 
