@@ -254,6 +254,12 @@ def upload_graph(g: Graph):
     params = {"context": f"<{NAMED_GRAPH}>"}
     headers = {"Content-Type": "text/turtle; charset=UTF-8"}
 
+    # Clear graph first to prevent duplication
+    log.info("Clearing graph %s...", NAMED_GRAPH)
+    del_endpoint = f"{GRAPHDB_URL}/repositories/{REPO_ID}/statements"
+    del_params = {"context": f"<{NAMED_GRAPH}>"}
+    requests.delete(del_endpoint, params=del_params)
+
     resp = requests.post(endpoint, params=params, data=ttl_bytes, headers=headers, timeout=120)
     if resp.status_code // 100 != 2:
         raise RuntimeError(f"Upload failed: {resp.status_code} {resp.text}")
