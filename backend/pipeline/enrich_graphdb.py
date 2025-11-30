@@ -2,6 +2,7 @@ import os
 import uuid
 import logging
 import json
+import ast
 from pathlib import Path
 from typing import Optional, Dict, Any
 
@@ -120,7 +121,11 @@ def build_graph(json_path: str) -> Graph:
                 try:
                     alloys.append(json.loads(line))
                 except json.JSONDecodeError:
-                    log.warning(f"Skipping invalid JSON line: {line[:50]}...")
+                    try:
+                        line_fixed = line.replace("null", "None").replace("true", "True").replace("false", "False")
+                        alloys.append(ast.literal_eval(line_fixed))
+                    except (ValueError, SyntaxError):
+                        log.warning(f"Skipping invalid JSON line: {line[:50]}...")
 
     elements_seen = set()
 
@@ -190,6 +195,12 @@ def build_graph(json_path: str) -> Graph:
 
             for prop_key, prop_class in PROPERTY_MAP.items():
                 measurements = mech_props.get(prop_key, [])
+                if isinstance(measurements, str):
+                    try:
+                        measurements = ast.literal_eval(measurements)
+                    except (ValueError, SyntaxError):
+                        log.warning(f"Failed to parse measurements for {prop_key}: {measurements[:50]}...")
+                        continue
 
                 if not measurements:
                     continue

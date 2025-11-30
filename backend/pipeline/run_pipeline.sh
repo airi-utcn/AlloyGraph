@@ -7,7 +7,7 @@ set -e
 cd "$(dirname "$0")"
 
 # Configuration
-DATA_FILE="../scrape/Data_Grok/data_clean_deduplicated_20251120.jsonl"
+DATA_FILE="../scrape/Data_Grok/alloydata_20251127_filtered.jsonl"
 WEAVIATE_COMPOSE="../docker/docker-compose-weaviate.yml"
 WEAVIATE_DATA_DIR="../docker/weaviate_data"
 
@@ -36,6 +36,7 @@ fi
 source ../.venv/bin/activate
 
 echo "      Installing dependencies..."
+pip install --upgrade pip
 pip install -r ../requirements.txt
 
 # 3. Generate Ontology
