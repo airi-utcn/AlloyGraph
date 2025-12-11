@@ -2,6 +2,9 @@ import argparse
 import json
 import random
 import os
+import re
+
+
 
 def convert_to_gpt(input_file: str, output_file: str) -> None:
     """
@@ -13,7 +16,7 @@ def convert_to_gpt(input_file: str, output_file: str) -> None:
 
     with open(output_file, "w", encoding="utf-8") as out_f, open(input_file, "r", encoding="utf-8") as in_f:
         for row in map(json.loads, in_f):
-            user_input = {r: row[r] for r in row if r in ['name', 'composition', 'typical_heat_treatment']}
+            user_input = f"Name: {row.get('name', '')}; Composition: {row.get('composition', '')}; Typical Heat Treatment: {row.get('typical_heat_treatment', '')}"
 
             output  = {'mechanical_properties': [v['mechanical_properties'] for v in row['variants']]}
 
