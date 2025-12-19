@@ -1,24 +1,26 @@
-import argparse
 import json
 import random
 import os
 import re
 
 
-
 def convert_to_gpt(input_file: str, output_file: str) -> None:
     """
-    Converts a JSONL file of instruction/input/output format to OpenAI fine-tuning format.
+    Converts a JSONL file of alloy data (output_data/all_alloys.jsonl) to OpenAI fine-tuning format.
     """
-    seen_inputs = set()
     converted_count = 0
     INSTRUCTION = "Predict mechanical properties based off chemical compositions and processing style"
 
     with open(output_file, "w", encoding="utf-8") as out_f, open(input_file, "r", encoding="utf-8") as in_f:
         for row in map(json.loads, in_f):
-            user_input = f"Name: {row.get('name', '')}; Composition: {row.get('composition', '')}; Typical Heat Treatment: {row.get('typical_heat_treatment', '')}"
+            # Compose user input string from available fields
+            user_input = f"Alloy: {row.get('alloy', '')}; Processing: {row.get('processing', '')}; Composition: {row.get('composition', '')}"
 
-            output  = {'mechanical_properties': [v['mechanical_properties'] for v in row['variants']]}
+            # Collect mechanical properties from the row (if present)
+            output = {}
+            for key in ["yield_strength", "uts", "elongation", "elasticity"]:
+                if key in row:
+                    output[key] = row[key]
 
             converted_count += 1
             formatted = {
@@ -36,8 +38,7 @@ def convert_to_gpt(input_file: str, output_file: str) -> None:
     print(f"Converted {converted_count} unique rows to '{output_file}'")
 
 
-
-def split_jsonl(full_path: str, train_path: str, val_path: str, test_path: str, val_ratio: float = 0.1, test_ratio: float = 0.1, seed: int = 42) -> None:
+def split_jsonl(full_path: str, train_path: str, val_path: str, test_path: str, val_ratio: float = 0.1, test_ratio: float = 0.2, seed: int = 42) -> None:
     """
     Splits a JSONL file into train/val/test sets.
     """
@@ -68,14 +69,9 @@ def split_jsonl(full_path: str, train_path: str, val_path: str, test_path: str, 
 # Main Execution
 # --------------------------------------------------------
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Prepare and split fine-tuning data for OpenAI models.")
-
-    parser.add_argument("input", help="Path to the input .jsonl file")
-
-    args = parser.parse_args()
-
-    # Create output directory
-    out_dir = os.path.join(os.path.dirname(args.input), "finetuned_data")
+    # Use the all_alloys.jsonl as input, and output to finetuned_data
+    input_path = os.path.join(os.path.dirname(__file__), "output_data", "all_alloys.jsonl")
+    out_dir = os.path.join(os.path.dirname(__file__), "output_data", "finetuned_data")
     os.makedirs(out_dir, exist_ok=True)
 
     # Output file paths
@@ -84,7 +80,7 @@ if __name__ == "__main__":
     val_path = os.path.join(out_dir, "val.jsonl")
     test_path = os.path.join(out_dir, "test.jsonl")
 
-    convert_to_gpt(args.input, full_path)
+    convert_to_gpt(input_path, full_path)
 
     print(f"Written to {full_path}")
     split_jsonl(full_path, train_path, val_path, test_path)
