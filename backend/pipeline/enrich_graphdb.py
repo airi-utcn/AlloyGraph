@@ -1,31 +1,30 @@
+import ast
+import json
+import logging
 import os
 import uuid
-import logging
-import json
-import ast
+
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-from rdflib import Graph, Namespace, URIRef, Literal
-from rdflib.namespace import RDF, RDFS, XSD
+from rdflib import Graph, Literal, Namespace, RDF, RDFS, URIRef, XSD
 import requests
+
+from backend.alloy_crew.models.feature_engineering import compute_alloy_features
 
 GRAPHDB_URL = os.getenv("GRAPHDB_URL", "http://localhost:7200")
 REPO_ID = os.getenv("GRAPHDB_REPO", "NiSuperAlloy")
-JSON_FILE = os.getenv("ALLOY_JSON", "/Users/alexlecu/PycharmProjects/AlloyMind/backend/scrape/Data_Grok/data_clean_deduplicated_20251120.jsonl")
+JSON_FILE = os.getenv("ALLOY_JSON", "../superalloy_preprocess/output_data/all_alloys.jsonl")
 NAMED_GRAPH = URIRef("http://www.semanticweb.org/alexlecu/ontologies/nisuperalloy")
 
 BASE = "http://www.semanticweb.org/alexlecu/ontologies/nisuperalloy#"
 NS = Namespace(BASE)
 
 PROPERTY_MAP: Dict[str, str] = {
-    "tensile_strength_mpa": "TensileStrength",
-    "yield_strength_mpa": "YieldStrength",
-    "elongation_pct": "Elongation",
-    "hardness": "Hardness",
-    "elastic_modulus_gpa": "ElasticModulus",
-    "creep_rupture_hours": "CreepRupture",
-    "reduction_of_area_pct": "ReductionOfArea",
+    "yield_strength": "YieldStrength",
+    "uts": "UTS",
+    "elongation": "Elongation",
+    "elasticity": "Elasticity"
 }
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s  %(message)s")
@@ -74,8 +73,9 @@ def add_quantity(g: Graph, unit: Optional[str], data: Dict[str, Any]) -> URIRef:
     return q
 
 
-def add_comp_entry(g: Graph, comp_uri: URIRef, elem_uri: URIRef, data: Dict[str, Any]):
-    entry = mint("Entry", f"{Path(str(elem_uri)).name}")
+def add_comp_entry(g: Graph, comp_uri: URIRef, elem_uri: URIRef, data: Dict[str, Any], alloy_name: str):
+    elem_name = Path(str(elem_uri)).name.replace("Element_", "")
+    entry = mint_stable("Entry", f"{alloy_name}_{elem_name}")
     g.add((entry, RDF.type, NS.CompositionEntry))
     g.add((comp_uri, NS.hasComponent, entry))
     g.add((entry, NS.element, elem_uri))
@@ -101,8 +101,28 @@ def add_comp_entry(g: Graph, comp_uri: URIRef, elem_uri: URIRef, data: Dict[str,
             q_data["approx"] = data["approx"]
 
         if q_data:
-            q_uri = add_quantity(g, data.get("unit", "%"), q_data)
-            g.add((entry, NS.hasMassFraction, q_uri))
+            q_suffix = f"{alloy_name}_{elem_name}_Mass"
+
+            q = mint_stable("Qty", q_suffix)
+            g.add((q, RDF.type, NS.Quantity))
+            g.add((entry, NS.hasMassFraction, q))
+
+            unit = data.get("unit", "%")
+            if unit:
+                g.add((q, NS.unitSymbol, Literal(unit)))
+            
+            if q_data.get("value") is not None:
+                g.add((q, NS.numericValue, Literal(float(q_data["value"]), datatype=XSD.decimal)))
+            if q_data.get("min") is not None:
+                g.add((q, NS.minInclusive, Literal(float(q_data["min"]), datatype=XSD.decimal)))
+            if q_data.get("max") is not None:
+                g.add((q, NS.maxInclusive, Literal(float(q_data["max"]), datatype=XSD.decimal)))
+            if q_data.get("approx"):
+                g.add((q, NS.isApproximate, Literal(True, datatype=XSD.boolean)))
+            if q_data.get("qualifier"):
+                g.add((q, NS.qualifier, Literal(q_data["qualifier"])))
+            if q_data.get("raw"):
+                g.add((q, NS.rawString, Literal(q_data["raw"])))
 
 
 def build_graph(json_path: str) -> Graph:
@@ -133,27 +153,103 @@ def build_graph(json_path: str) -> Graph:
         alloy_name = alloy_data.get("alloy", "")
         if not alloy_name: continue
 
-        uns = alloy_data.get("uns", "")
+        processing = alloy_data.get("processing")
+        form_val = alloy_data.get("form")
 
         a_uri = mint_stable("Alloy", alloy_name)
         g.add((a_uri, RDF.type, NS.NickelBasedSuperalloy))
         g.add((a_uri, RDFS.label, Literal(alloy_name)))
         g.add((a_uri, NS.tradeDesignation, Literal(alloy_name)))
+        
+        uns = alloy_data.get("uns", "")
         if uns:
             g.add((a_uri, NS.unsNumber, Literal(uns)))
             
         if alloy_data.get("family"):
             g.add((a_uri, NS.family, Literal(alloy_data["family"])))
+
+        parts = [alloy_name]
+        if processing: parts.append(processing)
+        if form_val: parts.append(form_val)
+        unique_token = "_".join(parts)
+        
+        v_uri = mint_stable("Variant", unique_token)
+        g.add((v_uri, RDF.type, NS.Variant))
+        g.add((v_uri, RDFS.label, Literal(unique_token.replace("_", " "))))
+
+        g.add((a_uri, NS.hasVariant, v_uri))
+
+        if processing:
+            g.add((v_uri, NS.processingMethod, Literal(processing)))
+            pm_uri = mint_stable("Method", processing)
+            g.add((pm_uri, RDF.type, NS.ProcessingMethod))
+            g.add((pm_uri, RDFS.label, Literal(processing)))
+            g.add((v_uri, NS.hasProcessingMethod, pm_uri))
+            
+        if form_val:
+            f_uri = mint_stable("Form", form_val)
+            g.add((f_uri, RDF.type, NS.Form))
+            g.add((f_uri, RDFS.label, Literal(form_val)))
+            g.add((f_uri, NS.form, Literal(form_val)))
+            g.add((v_uri, NS.hasForm, f_uri))
+            
         if alloy_data.get("density_gcm3"):
-            g.add((a_uri, NS.density, Literal(float(alloy_data["density_gcm3"]), datatype=XSD.decimal)))
+            g.add((v_uri, NS.density, Literal(float(alloy_data["density_gcm3"]), datatype=XSD.decimal)))
         if alloy_data.get("gamma_prime_vol_pct") is not None:
-            g.add((a_uri, NS.gammaPrimeVolPct, Literal(float(alloy_data["gamma_prime_vol_pct"]), datatype=XSD.decimal)))
+            g.add((v_uri, NS.gammaPrimeVolPct, Literal(float(alloy_data["gamma_prime_vol_pct"]), datatype=XSD.decimal)))
         if alloy_data.get("typical_heat_treatment"):
-            g.add((a_uri, NS.typicalHeatTreatment, Literal(alloy_data["typical_heat_treatment"])))
+            g.add((v_uri, NS.typicalHeatTreatment, Literal(alloy_data["typical_heat_treatment"])))
+
+        if alloy_data.get("typical_heat_treatment"):
+            g.add((v_uri, NS.typicalHeatTreatment, Literal(alloy_data["typical_heat_treatment"])))
+
+        try:
+            computed = compute_alloy_features(alloy_data)
+
+            log.info(f"[{alloy_name}] Computed Md_avg: {computed.get('Md_avg')}, TCP: {computed.get('TCP_risk')}")
+
+            if "Md_avg" in computed:
+                g.add((v_uri, NS.hasMdAverage, Literal(float(computed["Md_avg"]), datatype=XSD.decimal)))
+            
+            if "gamma_prime_estimated_vol_pct" in computed:
+                g.add((v_uri, NS.hasGammaPrimeEstimate, Literal(float(computed["gamma_prime_estimated_vol_pct"]), datatype=XSD.decimal)))
+            
+            if "density_calculated_gcm3" in computed:
+                g.add((v_uri, NS.hasDensityCalculated, Literal(float(computed["density_calculated_gcm3"]), datatype=XSD.decimal)))
+            
+            if "TCP_risk" in computed:
+                g.add((v_uri, NS.hasTcpRisk, Literal(computed["TCP_risk"])))
+
+            mapping = {
+                "SSS_total_wt_pct": NS.hasSSSTotalWtPct,
+                "refractory_total_wt_pct": NS.hasRefractoryTotalWtPct,
+                "GP_formers_wt_pct": NS.hasGPFormersWtPct,
+                "Al_Ti_ratio": NS.hasAlTiRatio,
+                "Cr_Co_ratio": NS.hasCrCoRatio,
+                "Cr_Ni_ratio": NS.hasCrNiRatio,
+                "Mo_W_ratio": NS.hasMoWRatio,
+                "Al_Ti_at_ratio": NS.hasAlTiAtRatio,
+                "GP_formers_at_pct": NS.hasGPFormersAtPct,
+            }
+            
+            for key, pred in mapping.items():
+                if key in computed:
+                    g.add((v_uri, pred, Literal(float(computed[key]), datatype=XSD.decimal)))
+
+            if "atomic_percent" in computed:
+                ap_json = json.dumps(computed["atomic_percent"])
+                g.add((v_uri, NS.hasAtomicCompositionJson, Literal(ap_json)))
+                
+        except Exception as e:
+            log.warning(f"Failed to compute features for {alloy_name}: {e}")
 
         c_uri = mint_stable("Comp", alloy_name)
         g.add((c_uri, RDF.type, NS.Composition))
-        g.add((a_uri, NS.hasComposition, c_uri))
+        g.add((v_uri, NS.hasComposition, c_uri))
+
+        others = alloy_data.get("other_constituents")
+        if others:
+            g.add((c_uri, NS.otherConstituents, Literal(others)))
 
         composition = alloy_data.get("composition", {})
         for elem_symbol, elem_data in composition.items():
@@ -165,93 +261,71 @@ def build_graph(json_path: str) -> Graph:
                 g.add((e_uri, RDFS.label, Literal(elem_symbol)))
                 elements_seen.add(elem_symbol)
 
-            add_comp_entry(g, c_uri, mint_stable("Element", elem_symbol), elem_data)
+            add_comp_entry(g, c_uri, mint_stable("Element", elem_symbol), elem_data, alloy_name)
 
-        for variant in alloy_data.get("variants", []):
-            variant_name = variant.get("variant_name", "")
-            processing = variant.get("processing", "")
-            source = variant.get("source", "")
-
-            if not variant_name:
-                log.warning(f"Skipping variant without name for alloy {alloy_name}")
-                continue
-
-            v_uri = mint_stable("Variant", f"{alloy_name}_{variant_name}")
-            g.add((v_uri, RDF.type, NS.Variant))
-            g.add((v_uri, RDFS.label, Literal(variant_name)))
-            g.add((a_uri, NS.hasVariant, v_uri))
-
-            g.add((v_uri, NS.variantName, Literal(variant_name)))
-            if processing:
-                g.add((v_uri, NS.processingMethod, Literal(processing)))
-            if source:
-                g.add((v_uri, NS.sourceUrl, Literal(source)))
-
-            # Handle mechanical properties structure
-            mech_props = variant.get("mechanical_properties", {})
-            # Also check for old 'properties' key just in case
-            if not mech_props and "properties" in variant:
-                mech_props = variant["properties"]
-
-            for prop_key, prop_class in PROPERTY_MAP.items():
-                measurements = mech_props.get(prop_key, [])
-                if isinstance(measurements, str):
-                    try:
-                        measurements = ast.literal_eval(measurements)
-                    except (ValueError, SyntaxError):
-                        log.warning(f"Failed to parse measurements for {prop_key}: {measurements[:50]}...")
-                        continue
-
-                if not measurements:
+        for prop_key, prop_class in PROPERTY_MAP.items():
+            measurements = alloy_data.get(prop_key, [])
+            if isinstance(measurements, str):
+                try:
+                    measurements = ast.literal_eval(measurements)
+                except (ValueError, SyntaxError):
+                    log.warning(f"Failed to parse measurements for {prop_key}: {measurements[:50]}...")
                     continue
 
-                propset_uri = mint_stable("PropSet", f"{alloy_name}_{variant_name}_{prop_class}")
-                g.add((propset_uri, RDF.type, NS.PropertySet))
-                g.add((v_uri, NS.hasPropertySet, propset_uri))
-                g.add((propset_uri, NS.measuresProperty, URIRef(BASE + prop_class)))
+            if not measurements:
+                continue
 
-                for meas_data in measurements:
-                    meas = mint("Meas", f"{alloy_name}_{variant_name}_{prop_class}")
-                    g.add((meas, RDF.type, NS.Measurement))
-                    g.add((propset_uri, NS.hasMeasurement, meas))
+            propset_uri = mint_stable("PropSet", f"{unique_token}_{prop_class}")
+            g.add((propset_uri, RDF.type, NS.PropertySet))
+            g.add((v_uri, NS.hasPropertySet, propset_uri))
+            g.add((propset_uri, NS.measuresProperty, URIRef(BASE + prop_class)))
 
-                    temp_c = meas_data.get("temp_c")
-                    temp_category = meas_data.get("temp_category")
-                    if temp_category:
-                        g.add((meas, NS.temperatureCategory, Literal(temp_category)))
-                    if temp_c is not None:
-                        temp_qty = add_quantity(g, "°C", {"value": temp_c})
-                        g.add((meas, NS.hasTestTemperature, temp_qty))
-                        
-                    if "stress_mpa" in meas_data:
-                        g.add((meas, NS.stress, Literal(float(meas_data["stress_mpa"]), datatype=XSD.decimal)))
-                    if "life_hours" in meas_data:
-                        g.add((meas, NS.lifeHours, Literal(float(meas_data["life_hours"]), datatype=XSD.decimal)))
+            for meas_data in measurements:
+                meas = mint("Meas", f"{unique_token}_{prop_class}")
+                g.add((meas, RDF.type, NS.Measurement))
+                g.add((propset_uri, NS.hasMeasurement, meas))
 
-                    q_data = {}
-                    if meas_data.get("value") is not None:
-                        q_data["value"] = meas_data["value"]
-                    if meas_data.get("min") is not None:
-                        q_data["min"] = meas_data["min"]
-                    if meas_data.get("max") is not None:
-                        q_data["max"] = meas_data["max"]
-                    if meas_data.get("qualifier"):
-                        q_data["qualifier"] = meas_data["qualifier"]
-                    if meas_data.get("raw"):
-                        q_data["raw"] = meas_data["raw"]
-                    if meas_data.get("approx"):
-                        q_data["approx"] = meas_data["approx"]
+                temp_c = meas_data.get("temp_c")
+                temp_category = meas_data.get("temp_category")
+                if temp_category:
+                    g.add((meas, NS.temperatureCategory, Literal(temp_category)))
+                if temp_c is not None:
+                    temp_qty = add_quantity(g, "°C", {"value": temp_c})
+                    g.add((meas, NS.hasTestTemperature, temp_qty))
+                    
+                if "stress_mpa" in meas_data:
+                    g.add((meas, NS.stress, Literal(float(meas_data["stress_mpa"]), datatype=XSD.decimal)))
+                if "life_hours" in meas_data:
+                    g.add((meas, NS.lifeHours, Literal(float(meas_data["life_hours"]), datatype=XSD.decimal)))
 
-                    unit = meas_data.get("unit", "")
-                    if not unit:
-                        if "_mpa" in prop_key: unit = "MPa"
-                        elif "_pct" in prop_key: unit = "%"
-                        elif "_gpa" in prop_key: unit = "GPa"
-                        elif prop_key == "hardness" and "scale" in meas_data:
-                            unit = meas_data["scale"]
+                q_data = {}
+                if meas_data.get("value") is not None:
+                    q_data["value"] = meas_data["value"]
+                if meas_data.get("min") is not None:
+                    q_data["min"] = meas_data["min"]
+                if meas_data.get("max") is not None:
+                     q_data["max"] = meas_data["max"]
+                if meas_data.get("qualifier"):
+                    q_data["qualifier"] = meas_data["qualifier"]
+                if meas_data.get("raw"):
+                    q_data["raw"] = meas_data["raw"]
+                if meas_data.get("approx"):
+                    q_data["approx"] = meas_data["approx"]
 
-                    q_uri = add_quantity(g, unit, q_data)
-                    g.add((meas, NS.hasQuantity, q_uri))
+                unit = meas_data.get("unit", "")
+                if not unit:
+                    if "_mpa" in prop_key: unit = "MPa"
+                    elif "_pct" in prop_key: unit = "%"
+                    elif "_gpa" in prop_key: unit = "GPa"
+                    elif prop_key == "yield_strength": unit = "MPa"
+                    elif prop_key == "uts": unit = "MPa"
+                    elif prop_key == "elongation": unit = "%"
+                    elif prop_key == "elasticity": unit = "GPa"
+                    elif prop_key == "hardness" and "scale" in meas_data:
+                        unit = meas_data["scale"]
+
+                q_uri = add_quantity(g, unit, q_data)
+                g.add((meas, NS.hasQuantity, q_uri))
 
     log.info("Graph built with %d triples", len(g))
     return g

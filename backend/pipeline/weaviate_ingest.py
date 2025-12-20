@@ -9,9 +9,9 @@ from SPARQLWrapper import SPARQLWrapper, JSON
 # Config
 GRAPHDB_URL = os.getenv("GRAPHDB_URL", "http://localhost:7200")
 GRAPHDB_REPO = os.getenv("GRAPHDB_REPO", "NiSuperAlloy")
-WEAVIATE_HOST = "localhost"
-WEAVIATE_PORT = 8081
-WEAVIATE_GRPC_PORT = 50052
+WEAVIATE_HOST = os.getenv("WEAVIATE_HOST", "localhost")
+WEAVIATE_PORT = int(os.getenv("WEAVIATE_PORT", "8081"))
+WEAVIATE_GRPC_PORT = int(os.getenv("WEAVIATE_GRPC_PORT", "50052"))
 BASE = "http://www.semanticweb.org/alexlecu/ontologies/nisuperalloy#"
 NS = "nisuperalloy"
 
@@ -70,7 +70,7 @@ def fetch_alloys():
         q = f"""
         PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
         PREFIX ns: <{BASE}>
-        SELECT ?alloy ?label ?uns ?comp ?others ?family ?density ?gammaPrime ?heatTreat
+        SELECT ?alloy ?label ?uns ?comp ?others ?family ?density ?gammaPrime ?heatTreat ?processing
         WHERE {{
           ?alloy rdf:type ns:NickelBasedSuperalloy ;
                  ns:tradeDesignation ?label .
@@ -79,6 +79,7 @@ def fetch_alloys():
           OPTIONAL {{ ?alloy ns:density ?density }}
           OPTIONAL {{ ?alloy ns:gammaPrimeVolPct ?gammaPrime }}
           OPTIONAL {{ ?alloy ns:typicalHeatTreatment ?heatTreat }}
+          OPTIONAL {{ ?alloy ns:hasProcessingMethod ?pm . ?pm rdfs:label ?processing }}
           OPTIONAL {{
             ?alloy ns:hasComposition ?comp .
             OPTIONAL {{ ?comp ns:otherConstituents ?others }}
@@ -104,7 +105,7 @@ def fetch_alloys():
                 "heatTreat": b.get("heatTreat", {}).get("value"),
                 "comp": b.get("comp", {}).get("value"),
                 "others": b.get("others", {}).get("value"),
-                "variants": []
+                "processing": b.get("processing", {}).get("value")
             }
 
         if len(results) < page_size:
@@ -112,47 +113,6 @@ def fetch_alloys():
         offset += page_size
 
     log.info(f"Found {len(alloys)} alloys")
-
-    # Fetch variants
-    offset = 0
-    while True:
-        q = f"""
-        PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-        PREFIX ns: <{BASE}>
-        SELECT ?alloy ?variant ?variantName ?procMethod ?sourceUrl
-        WHERE {{
-          ?alloy rdf:type ns:NickelBasedSuperalloy ;
-                 ns:hasVariant ?variant .
-          OPTIONAL {{ ?variant ns:variantName ?variantName }}
-          OPTIONAL {{ ?variant ns:processingMethod ?procMethod }}
-          OPTIONAL {{ ?variant ns:sourceUrl ?sourceUrl }}
-        }}
-        LIMIT {page_size} OFFSET {offset}
-        """
-
-        try:
-            res = query_graphdb(q)
-            results = res['results']['bindings']
-
-            if not results:
-                break
-
-            for b in results:
-                alloy_iri = b["alloy"]["value"]
-                if alloy_iri in alloys:
-                    alloys[alloy_iri]["variants"].append({
-                        "iri": b["variant"]["value"],
-                        "name": b.get("variantName", {}).get("value") or "default",
-                        "processing": b.get("procMethod", {}).get("value"),
-                        "source": b.get("sourceUrl", {}).get("value")
-                    })
-
-            if len(results) < page_size:
-                break
-            offset += page_size
-        except:
-            break
-
     return alloys
 
 
@@ -369,20 +329,25 @@ def fetch_measurements(source_iri):
     return measurements
 
 
-def upsert_object(coll, uuid, props):
-    """Insert or update object."""
+def batch_add_object(batch, collection_name, uuid, props):
+    """Add object to batch."""
     props = {k: v for k, v in props.items() if v is not None}
-    if not props:
-        props = {}
+    batch.add_object(
+        collection=collection_name,
+        uuid=uuid,
+        properties=props
+    )
 
-    if coll.data.exists(uuid):
-        if props:
-            coll.data.update(uuid=uuid, properties=props)
-    else:
-        coll.data.insert(uuid=uuid, properties=props)
+def batch_add_ref(batch, from_coll, from_uuid, ref_prop, to_uuid):
+    """Add reference to batch."""
+    batch.add_reference(
+        from_collection=from_coll,
+        from_uuid=from_uuid,
+        from_property=ref_prop,
+        to=to_uuid
+    )
 
-
-def create_quantity(client, qty):
+def create_quantity(batch, qty):
     """Create quantity object and return UUID."""
     if not qty:
         return None
@@ -395,192 +360,256 @@ def create_quantity(client, qty):
         if qty.get(k) is not None:
             props[k] = qty[k]
 
-    upsert_object(client.collections.get("Quantity"), q_uuid, props)
+    batch_add_object(batch, "Quantity", q_uuid, props)
     return q_uuid
 
 
-def add_reference(coll, from_uuid, ref_name, to_uuid):
-    """Add reference, ignore if exists."""
-    try:
-        coll.data.reference_add(from_uuid, ref_name, to_uuid)
-    except:
-        pass
-
+def fetch_variants(alloy_iri):
+    """Fetch variants for a given alloy."""
+    variants = []
+    q = f"""
+    PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+    PREFIX ns: <{BASE}>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    SELECT ?var ?label ?proc ?form ?comp ?others ?density ?gammaPrime ?heatTreat 
+           ?mdAvg ?gammaPrimeEst ?densityCalc ?tcpRisk
+           ?sss ?ref ?gpWT ?alti ?crco ?crni ?mow ?altiAt ?gpAt ?apJson
+    WHERE {{
+      <{alloy_iri}> ns:hasVariant ?var .
+      OPTIONAL {{ ?var rdfs:label ?label }}
+      OPTIONAL {{ ?var ns:hasProcessingMethod ?pm . ?pm rdfs:label ?proc }}
+      OPTIONAL {{ ?var ns:hasForm ?f . ?f ns:form ?form }}
+      OPTIONAL {{ ?var ns:density ?density }}
+      OPTIONAL {{ ?var ns:gammaPrimeVolPct ?gammaPrime }}
+      OPTIONAL {{ ?var ns:typicalHeatTreatment ?heatTreat }}
+      OPTIONAL {{ ?var ns:hasMdAverage ?mdAvg }}
+      OPTIONAL {{ ?var ns:hasGammaPrimeEstimate ?gammaPrimeEst }}
+      OPTIONAL {{ ?var ns:hasDensityCalculated ?densityCalc }}
+      OPTIONAL {{ ?var ns:hasTcpRisk ?tcpRisk }}
+      # Extended Features
+      OPTIONAL {{ ?var ns:hasSSSTotalWtPct ?sss }}
+      OPTIONAL {{ ?var ns:hasRefractoryTotalWtPct ?ref }}
+      OPTIONAL {{ ?var ns:hasGPFormersWtPct ?gpWT }}
+      OPTIONAL {{ ?var ns:hasAlTiRatio ?alti }}
+      OPTIONAL {{ ?var ns:hasCrCoRatio ?crco }}
+      OPTIONAL {{ ?var ns:hasCrNiRatio ?crni }}
+      OPTIONAL {{ ?var ns:hasMoWRatio ?mow }}
+      OPTIONAL {{ ?var ns:hasAlTiAtRatio ?altiAt }}
+      OPTIONAL {{ ?var ns:hasGPFormersAtPct ?gpAt }}
+      OPTIONAL {{ ?var ns:hasAtomicCompositionJson ?apJson }}
+      
+      OPTIONAL {{
+        ?var ns:hasComposition ?comp .
+        OPTIONAL {{ ?comp ns:otherConstituents ?others }}
+      }}
+    }}
+    """
+    res = query_graphdb(q)
+    for b in res["results"]["bindings"]:
+        variants.append({
+            "iri": b["var"]["value"],
+            "label": b.get("label", {}).get("value"),
+            "processing": b.get("proc", {}).get("value"),
+            "form": b.get("form", {}).get("value"),
+            "density": to_float(b.get("density", {}).get("value")),
+            "gammaPrime": to_float(b.get("gammaPrime", {}).get("value")),
+            "heatTreat": b.get("heatTreat", {}).get("value"),
+            "comp": b.get("comp", {}).get("value"),
+            "others": b.get("others", {}).get("value"),
+            "mdAvg": to_float(b.get("mdAvg", {}).get("value")),
+            "gammaPrimeEst": to_float(b.get("gammaPrimeEst", {}).get("value")),
+            "densityCalc": to_float(b.get("densityCalc", {}).get("value")),
+            "tcpRisk": b.get("tcpRisk", {}).get("value"),
+            "sssTotalWtPct": to_float(b.get("sss", {}).get("value")),
+            "refractoryTotalWtPct": to_float(b.get("ref", {}).get("value")),
+            "gpFormersWtPct": to_float(b.get("gpWT", {}).get("value")),
+            "alTiRatio": to_float(b.get("alti", {}).get("value")),
+            "crCoRatio": to_float(b.get("crco", {}).get("value")),
+            "crNiRatio": to_float(b.get("crni", {}).get("value")),
+            "moWRatio": to_float(b.get("mow", {}).get("value")),
+            "alTiAtRatio": to_float(b.get("altiAt", {}).get("value")),
+            "gpFormersAtPct": to_float(b.get("gpAt", {}).get("value")),
+            "atomicCompositionJson": b.get("apJson", {}).get("value"),
+        })
+    return variants
 
 def main():
-    log.info("Starting GraphDB → Weaviate import")
+    log.info("Starting GraphDB → Weaviate import (Hierarchical)")
 
     alloys = fetch_alloys()
     client = connect_weaviate()
 
     try:
-        # Get collections
-        colls = {
-            "alloy": client.collections.get("NickelBasedSuperalloy"),
-            "variant": client.collections.get("Variant"),
-            "comp": client.collections.get("Composition"),
-            "entry": client.collections.get("CompositionEntry"),
-            "elem": client.collections.get("Element"),
-            "propset": client.collections.get("PropertySet"),
-            "meas": client.collections.get("Measurement"),
-            "prop": client.collections.get("MechanicalProperty"),
-            "test": client.collections.get("TestCondition"),
-            "route": client.collections.get("ProcessingRoute"),
-        }
-
         # Build lookups
-        elem_lookup = {
-            o.properties.get("symbol"): o.uuid
-            for o in colls["elem"].iterator()
-            if o.properties.get("symbol")
-        }
-
-        prop_lookup = {
-            o.properties.get("propertyType"): o.uuid
-            for o in colls["prop"].iterator()
-            if o.properties.get("propertyType")
-        }
+        elem_lookup = {} 
+        prop_lookup = {}
+        
+        log.info("Seeding Property Types...")
+        PROPS = [
+            "TensileStrength", "YieldStrength", "Elongation", "Hardness",
+            "ElasticModulus", "Elasticity", "UTS", "CreepRupture", "ReductionOfArea"
+        ]
+        
+        with client.batch.dynamic() as batch:
+            for p in PROPS:
+                p_uuid = uuid5(f"Property:{p}")
+                batch_add_object(batch, "MechanicalProperty", p_uuid, {
+                    "label": p,
+                    "propertyType": p
+                })
+                prop_lookup[p] = p_uuid
+        
+        prop_col = client.collections.get("MechanicalProperty")
+        for o in prop_col.iterator():
+            pt = o.properties.get("propertyType")
+            if pt: prop_lookup[pt] = o.uuid
 
         stats = defaultdict(int)
 
-        # Process each alloy
-        log.info(f"Importing {len(alloys)} alloys...")
+        log.info(f"Importing {len(alloys)} alloys with BATCHING...")
 
-        for idx, (a_iri, meta) in enumerate(alloys.items(), 1):
-            if idx % 50 == 0:
-                log.info(f"  {idx}/{len(alloys)}...")
+        with client.batch.dynamic() as batch:
+            
+            for idx, (a_iri, meta) in enumerate(alloys.items(), 1):
+                if idx % 50 == 0:
+                    log.info(f"  {idx}/{len(alloys)}...")
 
-            a_uuid = uuid5(f"Alloy:{a_iri}")
+                a_uuid = uuid5(f"Alloy:{a_iri}")
 
-            # Create alloy
-            upsert_object(colls["alloy"], a_uuid, {
-                "tradeDesignation": meta["label"],
-                "unsNumber": meta.get("uns"),
-                "family": meta.get("family"),
-                "density": meta.get("density"),
-                "gammaPrimeVolPct": meta.get("gammaPrime"),
-                "typicalHeatTreatment": meta.get("heatTreat"),
-            })
-            stats["alloys"] += 1
-
-            # Create composition
-            if meta.get("comp"):
-                comp_uuid = uuid5(f"Composition:{meta['comp']}")
-                upsert_object(colls["comp"], comp_uuid, {
-                    "otherConstituents": meta.get("others")
+                # Create Alloy
+                batch_add_object(batch, "NickelBasedSuperalloy", a_uuid, {
+                    "tradeDesignation": meta["label"],
+                    "unsNumber": meta.get("uns"),
+                    "family": meta.get("family")
                 })
-                add_reference(colls["alloy"], a_uuid, "hasComposition", comp_uuid)
-                stats["compositions"] += 1
+                stats["alloys"] += 1
 
-                # Add composition entries
-                entries = fetch_composition(meta["comp"])
-                for e_iri, e in entries.items():
-                    e_uuid = uuid5(f"CompEntry:{e_iri}")
-                    upsert_object(colls["entry"], e_uuid, {
-                        "isBalanceRemainder": e["is_balance"]
+                # Fetch Variants
+                variants = fetch_variants(a_iri)
+                
+                for v in variants:
+                    v_uuid = uuid5(f"Variant:{v['iri']}")
+                    
+                    # Compute Comp Summary for Variant
+                    comp_summary = ""
+                    comp_entries = {}
+                    if v.get("comp"):
+                        comp_entries = fetch_composition(v["comp"])
+                        parts = []
+                        for e in comp_entries.values():
+                            sym = e.get("symbol", "")
+                            val = 0.0
+                            if e.get("qty"):
+                                val = e["qty"].get("numericValue") or e["qty"].get("nominal") or 0.0
+                            if sym and val > 0:
+                                parts.append(f"{sym}: {val}%")
+                        comp_summary = ", ".join(parts)
+
+                    batch_add_object(batch, "Variant", v_uuid, {
+                        "name": v["label"],
+                        "processingMethod": v["processing"],
+                        "density": v["density"],
+                        "gammaPrimeVolPct": v["gammaPrime"],
+                        "typicalHeatTreatment": v["heatTreat"],
+                        "compositionSummary": comp_summary,
+                        "mdAverage": v["mdAvg"],
+                        "gammaPrimeEstimate": v["gammaPrimeEst"],
+                        "densityCalculated": v["densityCalc"],
+                        "tcpRisk": v["tcpRisk"],
+                        "sssTotalWtPct": v["sssTotalWtPct"],
+                        "refractoryTotalWtPct": v["refractoryTotalWtPct"],
+                        "gpFormersWtPct": v["gpFormersWtPct"],
+                        "alTiRatio": v["alTiRatio"],
+                        "crCoRatio": v["crCoRatio"],
+                        "crNiRatio": v["crNiRatio"],
+                        "moWRatio": v["moWRatio"],
+                        "alTiAtRatio": v["alTiAtRatio"],
+                        "gpFormersAtPct": v["gpFormersAtPct"],
+                        "atomicCompositionJson": v["atomicCompositionJson"],
                     })
-                    add_reference(colls["comp"], comp_uuid, "hasComponent", e_uuid)
+                    batch_add_ref(batch, "NickelBasedSuperalloy", a_uuid, "hasVariant", v_uuid)
 
-                    # Link element
-                    sym = e["symbol"]
-                    el_uuid = elem_lookup.get(sym)
-                    if not el_uuid:
-                        el_uuid = uuid5(f"Element:{sym}")
-                        upsert_object(colls["elem"], el_uuid, {"symbol": sym, "label": sym})
-                        elem_lookup[sym] = el_uuid
-                    add_reference(colls["entry"], e_uuid, "hasElement", el_uuid)
+                    # FormType (Shared)
+                    if v.get("form"):
+                        f_uuid = uuid5(f"FormType:{v['form']}")
+                        batch_add_object(batch, "FormType", f_uuid, {"formTypeName": v["form"]})
+                        batch_add_ref(batch, "Variant", v_uuid, "hasFormType", f_uuid)
+                    stats["variants"] += 1
 
-                    # Link quantity
-                    if e.get("qty"):
-                        q_uuid = create_quantity(client, e["qty"])
-                        if q_uuid:
-                            add_reference(colls["entry"], e_uuid, "hasMassFraction", q_uuid)
-                            stats["quantities"] += 1
-
-                    stats["entries"] += 1
-
-            # Create variants
-            variants = meta.get("variants") or [{
-                "iri": f"{a_iri}_default",
-                "name": "default",
-                "processing": None,
-                "source": None
-            }]
-
-            alloy_meas = fetch_measurements(a_iri)
-
-            for var in variants:
-                v_uuid = uuid5(f"Variant:{var['iri']}")
-                upsert_object(colls["variant"], v_uuid, {
-                    "variantName": var.get("name"),
-                    "sourceUrl": var.get("source")
-                })
-                add_reference(colls["alloy"], a_uuid, "hasVariant", v_uuid)
-                stats["variants"] += 1
-
-                # Processing route
-                if var.get("processing"):
-                    pr_uuid = uuid5(f"ProcRoute:{a_iri}:{var['processing']}")
-                    upsert_object(colls["route"], pr_uuid, {
-                        "processingDescription": var["processing"]
-                    })
-                    add_reference(colls["variant"], v_uuid, "hasProcessingRoute", pr_uuid)
-
-                # Get measurements
-                if var["iri"] != f"{a_iri}_default":
-                    meas = fetch_measurements(var["iri"])
-                else:
-                    meas = alloy_meas
-
-                # Group by property type
-                by_prop = defaultdict(list)
-                for m in meas:
-                    by_prop[m["prop_type"]].append(m)
-
-                # Create property sets
-                for prop_type, measurements in by_prop.items():
-                    ps_uuid = uuid5(f"PropertySet:{v_uuid}:{prop_type}")
-                    upsert_object(colls["propset"], ps_uuid, {})
-                    add_reference(colls["variant"], v_uuid, "hasPropertySet", ps_uuid)
-                    stats["property_sets"] += 1
-
-                    # Link property
-                    mp_uuid = prop_lookup.get(prop_type)
-                    if mp_uuid:
-                        add_reference(colls["propset"], ps_uuid, "measuresProperty", mp_uuid)
-
-                    # Create measurements
-                    for m in measurements:
-                        m_uuid = uuid5(f"Measurement:{m['iri']}")
-                        upsert_object(colls["meas"], m_uuid, {
-                            "stress": m.get("stress"),
-                            "lifeHours": m.get("life_hours")
+                    # Create Composition
+                    if v.get("comp"):
+                        comp_uuid = uuid5(f"Composition:{v['comp']}")
+                        batch_add_object(batch, "Composition", comp_uuid, {
+                            "otherConstituents": v.get("others")
                         })
-                        add_reference(colls["propset"], ps_uuid, "hasMeasurement", m_uuid)
-                        stats["measurements"] += 1
+                        batch_add_ref(batch, "Variant", v_uuid, "hasComposition", comp_uuid)
+                        stats["compositions"] += 1
 
-                        # Link quantity
-                        if m.get("qty"):
-                            q_uuid = create_quantity(client, m["qty"])
-                            if q_uuid:
-                                add_reference(colls["meas"], m_uuid, "hasQuantity", q_uuid)
-                                stats["quantities"] += 1
+                        for e_iri, e in comp_entries.items():
+                            e_uuid = uuid5(f"CompEntry:{e_iri}")
+                            batch_add_object(batch, "CompositionEntry", e_uuid, {"isBalanceRemainder": e["is_balance"]})
+                            batch_add_ref(batch, "Composition", comp_uuid, "hasComponent", e_uuid)
 
-                        # Test conditions
-                        if m.get("temp_cat") or m.get("heat_treatment") or m.get("test_temp"):
-                            tc_uuid = uuid5(f"TestCond:{m['iri']}")
-                            upsert_object(colls["test"], tc_uuid, {
-                                "temperatureCategory": m.get("temp_cat"),
-                                "heatTreatmentCondition": m.get("heat_treatment")
-                            })
-                            add_reference(colls["meas"], m_uuid, "hasTestCondition", tc_uuid)
-                            stats["test_conditions"] += 1
+                            sym = e["symbol"]
+                            el_uuid = elem_lookup.get(sym)
+                            if not el_uuid:
+                                el_uuid = uuid5(f"Element:{sym}")
+                                batch_add_object(batch, "Element", el_uuid, {"symbol": sym, "label": sym})
+                                elem_lookup[sym] = el_uuid
+                            batch_add_ref(batch, "CompositionEntry", e_uuid, "hasElement", el_uuid)
 
-                            if m.get("test_temp"):
-                                temp_q_uuid = create_quantity(client, m["test_temp"])
-                                if temp_q_uuid:
-                                    add_reference(colls["test"], tc_uuid, "hasTemperature", temp_q_uuid)
+                            if e.get("qty"):
+                                q_uuid = create_quantity(batch, e["qty"])
+                                if q_uuid:
+                                    batch_add_ref(batch, "CompositionEntry", e_uuid, "hasMassFraction", q_uuid)
                                     stats["quantities"] += 1
+                            stats["entries"] += 1
+
+                    # Processing Route (Shared)
+                    if v.get("processing"):
+                        pr_uuid = uuid5(f"ProcessingRoute:{v['processing']}")
+                        batch_add_object(batch, "ProcessingRoute", pr_uuid, {"processingDescription": v["processing"]})
+                        batch_add_ref(batch, "Variant", v_uuid, "hasProcessingRoute", pr_uuid)
+
+                    # Properties (Using Variant IRI)
+                    variant_meas = fetch_measurements(v['iri'])
+                    by_prop = defaultdict(list)
+                    for m in variant_meas:
+                        by_prop[m["prop_type"]].append(m)
+
+                    for prop_type, measurements in by_prop.items():
+                        ps_uuid = uuid5(f"PropertySet:{v['iri']}:{prop_type}")
+                        batch_add_object(batch, "PropertySet", ps_uuid, {})
+                        batch_add_ref(batch, "Variant", v_uuid, "hasPropertySet", ps_uuid)
+                        stats["property_sets"] += 1
+                        
+                        mp_uuid = prop_lookup.get(prop_type)
+                        if mp_uuid:
+                            batch_add_ref(batch, "PropertySet", ps_uuid, "measuresProperty", mp_uuid)
+
+                        for m in measurements:
+                            m_uuid = uuid5(f"Measurement:{m['iri']}")
+                            batch_add_object(batch, "Measurement", m_uuid, {
+                                "stress": m.get("stress"), "lifeHours": m.get("life_hours")
+                            })
+                            batch_add_ref(batch, "PropertySet", ps_uuid, "hasMeasurement", m_uuid)
+                            stats["measurements"] += 1
+
+                            if m.get("qty"):
+                                q_uuid = create_quantity(batch, m["qty"])
+                                if q_uuid: batch_add_ref(batch, "Measurement", m_uuid, "hasQuantity", q_uuid)
+
+                            if m.get("temp_cat") or m.get("heat_treatment") or m.get("test_temp"):
+                                tc_uuid = uuid5(f"TestCond:{m['iri']}")
+                                batch_add_object(batch, "TestCondition", tc_uuid, {
+                                    "temperatureCategory": m.get("temp_cat"),
+                                    "heatTreatmentCondition": m.get("heat_treatment")
+                                })
+                                batch_add_ref(batch, "Measurement", m_uuid, "hasTestCondition", tc_uuid)
+                                
+                                if m.get("test_temp"):
+                                    temp_q_uuid = create_quantity(batch, m["test_temp"])
+                                    if temp_q_uuid: batch_add_ref(batch, "TestCondition", tc_uuid, "hasTemperature", temp_q_uuid)
 
         log.info("\nImport complete!")
         for key, value in sorted(stats.items()):

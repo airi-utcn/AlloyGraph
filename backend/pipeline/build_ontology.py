@@ -31,6 +31,12 @@ def build_ontology():
 
         class Element(Thing):
             pass
+            
+        class ProcessingMethod(Thing):
+            pass
+
+        class Form(Thing):
+            pass
 
         class MechanicalProperty(Thing):
             pass
@@ -49,7 +55,13 @@ def build_ontology():
 
         class ElasticModulus(MechanicalProperty):
             pass
+
+        class Elasticity(MechanicalProperty):
+            pass
         
+        class UTS(MechanicalProperty):
+            pass
+
         class CreepRupture(MechanicalProperty):
             pass
             
@@ -69,9 +81,17 @@ def build_ontology():
         class hasVariant(ObjectProperty):
             domain = [NickelBasedSuperalloy]
             range  = [Variant]
+            
+        class hasProcessingMethod(ObjectProperty):
+            domain = [NickelBasedSuperalloy, Variant]
+            range  = [ProcessingMethod]
+
+        class hasForm(ObjectProperty):
+            domain = [Variant]
+            range  = [Form]
 
         class hasPropertySet(ObjectProperty):
-            domain = [Variant]
+            domain = [Variant, NickelBasedSuperalloy]
             range  = [PropertySet]
 
         class measuresProperty(ObjectProperty):
@@ -128,6 +148,10 @@ def build_ontology():
 
         class variantName(DataProperty):
             domain = [Variant]
+            range  = [str]
+
+        class form(DataProperty):
+            domain = [Form]
             range  = [str]
 
         class processingMethod(DataProperty):
@@ -193,6 +217,62 @@ def build_ontology():
         class lifeHours(DataProperty):
             domain = [Measurement]
             range  = [float]
+
+        class hasMdAverage(DataProperty):
+            domain = [Variant]
+            range  = [float]
+
+        class hasGammaPrimeEstimate(DataProperty):
+            domain = [Variant]
+            range  = [float]
+
+        class hasDensityCalculated(DataProperty):
+            domain = [Variant]
+            range  = [float]
+
+        class hasTcpRisk(DataProperty):
+            domain = [Variant]
+            range  = [str]
+
+        class hasSSSTotalWtPct(DataProperty):
+            domain = [Variant]
+            range  = [float]
+
+        class hasRefractoryTotalWtPct(DataProperty):
+            domain = [Variant]
+            range  = [float]
+
+        class hasGPFormersWtPct(DataProperty):
+            domain = [Variant]
+            range  = [float]
+
+        class hasAlTiRatio(DataProperty):
+            domain = [Variant]
+            range  = [float]
+
+        class hasCrCoRatio(DataProperty):
+            domain = [Variant]
+            range  = [float]
+
+        class hasCrNiRatio(DataProperty):
+            domain = [Variant]
+            range  = [float]
+
+        class hasMoWRatio(DataProperty):
+            domain = [Variant]
+            range  = [float]
+
+        class hasAlTiAtRatio(DataProperty):
+            domain = [Variant]
+            range  = [float]
+
+        class hasGPFormersAtPct(DataProperty):
+            domain = [Variant]
+            range  = [float]
+
+        class hasAtomicCompositionJson(DataProperty):
+            domain = [Variant]
+            range  = [str]
 
         CompositionEntry.is_a.append(element.exactly(1, Element))
         CompositionEntry.is_a.append(hasMassFraction.max(1, Quantity))

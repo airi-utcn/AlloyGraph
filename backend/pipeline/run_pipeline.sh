@@ -5,9 +5,11 @@ set -e
 
 # Ensure we are in the directory of the script
 cd "$(dirname "$0")"
+export PYTHONPATH=$PYTHONPATH:$(pwd)/../..
 
 # Configuration
-DATA_FILE="../scrape/Data_Grok/alloydata_20251127_filtered.jsonl"
+SOURCE_FILE="../superalloy_preprocess/output_data/all_alloys.jsonl"
+DATA_FILE="../alloy_crew/models/training_data/final_alloy_data_enriched.jsonl"
 WEAVIATE_COMPOSE="../docker/docker-compose-weaviate.yml"
 WEAVIATE_DATA_DIR="../docker/weaviate_data"
 
@@ -42,6 +44,10 @@ pip install -r ../requirements.txt
 # 3. Generate Ontology
 echo "[3/5] Generating Ontology Schema..."
 python build_ontology.py
+
+# 3.5. Feature Enrichment
+echo "[3.5/5] Enriching Data with Computed Features..."
+python enrich_jsonl_with_features.py "$SOURCE_FILE" "$DATA_FILE"
 
 # 4. Populate GraphDB
 echo "[4/5] Populating GraphDB from $DATA_FILE..."

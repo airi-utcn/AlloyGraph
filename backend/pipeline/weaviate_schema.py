@@ -1,5 +1,6 @@
 import logging
 import time
+import os
 
 import weaviate
 from weaviate.classes.config import Property, DataType, Configure, ReferenceProperty
@@ -7,9 +8,9 @@ from weaviate.util import generate_uuid5
 
 logger = logging.getLogger(__name__)
 
-WEAVIATE_HOST = "localhost"
-WEAVIATE_PORT = 8081
-WEAVIATE_GRPC_PORT = 50052
+WEAVIATE_HOST = os.getenv("WEAVIATE_HOST", "localhost")
+WEAVIATE_PORT = int(os.getenv("WEAVIATE_PORT", "8081"))
+WEAVIATE_GRPC_PORT = int(os.getenv("WEAVIATE_GRPC_PORT", "50052"))
 NS = "nisuperalloy"  # namespace for deterministic UUIDv5
 
 
@@ -64,6 +65,7 @@ def main():
                 Property(name="density", data_type=DataType.NUMBER),
                 Property(name="gammaPrimeVolPct", data_type=DataType.NUMBER),
                 Property(name="typicalHeatTreatment", data_type=DataType.TEXT),
+                Property(name="compositionSummary", data_type=DataType.TEXT),
             ],
             vectorizer_config=vec_config,
         )
@@ -121,8 +123,27 @@ def main():
         client.collections.create(
             name="Variant",
             properties=[
-                Property(name="variantName", data_type=DataType.TEXT),
+                Property(name="name", data_type=DataType.TEXT),  # "RENE 41_wrought_bar"
+                Property(name="processingMethod", data_type=DataType.TEXT),
+                Property(name="density", data_type=DataType.NUMBER),
+                Property(name="gammaPrimeVolPct", data_type=DataType.NUMBER),
+                Property(name="typicalHeatTreatment", data_type=DataType.TEXT),
+                Property(name="compositionSummary", data_type=DataType.TEXT),
                 Property(name="sourceUrl", data_type=DataType.TEXT),
+                Property(name="mdAverage", data_type=DataType.NUMBER),
+                Property(name="gammaPrimeEstimate", data_type=DataType.NUMBER),
+                Property(name="densityCalculated", data_type=DataType.NUMBER),
+                Property(name="tcpRisk", data_type=DataType.TEXT),
+                Property(name="sssTotalWtPct", data_type=DataType.NUMBER),
+                Property(name="refractoryTotalWtPct", data_type=DataType.NUMBER),
+                Property(name="gpFormersWtPct", data_type=DataType.NUMBER),
+                Property(name="alTiRatio", data_type=DataType.NUMBER),
+                Property(name="crCoRatio", data_type=DataType.NUMBER),
+                Property(name="crNiRatio", data_type=DataType.NUMBER),
+                Property(name="moWRatio", data_type=DataType.NUMBER),
+                Property(name="alTiAtRatio", data_type=DataType.NUMBER),
+                Property(name="gpFormersAtPct", data_type=DataType.NUMBER),
+                Property(name="atomicCompositionJson", data_type=DataType.TEXT),
             ],
             vectorizer_config=vec_config,
         )
@@ -225,6 +246,13 @@ def main():
         client.collections.get("NickelBasedSuperalloy").config.add_reference(
             ReferenceProperty(name="hasVariant", target_collection="Variant")
         )
+        # Direct references for flat model
+        client.collections.get("NickelBasedSuperalloy").config.add_reference(
+            ReferenceProperty(name="hasPropertySet", target_collection="PropertySet")
+        )
+        client.collections.get("NickelBasedSuperalloy").config.add_reference(
+            ReferenceProperty(name="hasProcessingRoute", target_collection="ProcessingRoute")
+        )
         logger.info("  → NickelBasedSuperalloy references")
 
         # Composition references
@@ -243,6 +271,12 @@ def main():
         logger.info("  → CompositionEntry references")
 
         # Variant references
+        client.collections.get("Variant").config.add_reference(
+            ReferenceProperty(name="hasComposition", target_collection="Composition")
+        )
+        client.collections.get("Variant").config.add_reference(
+            ReferenceProperty(name="hasFormType", target_collection="FormType")
+        )
         client.collections.get("Variant").config.add_reference(
             ReferenceProperty(name="hasPropertySet", target_collection="PropertySet")
         )

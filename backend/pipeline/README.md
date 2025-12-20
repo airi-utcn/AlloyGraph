@@ -7,9 +7,17 @@ This pipeline automates the ingestion of superalloy data into the Knowledge Grap
 The pipeline performs the following steps sequentially:
 1.  **Environment Setup**: Creates a virtual environment and installs dependencies.
 2.  **Reset Weaviate**: Restarts the Weaviate Docker container to ensure a clean state.
-3.  **Build Ontology**: Generates the OWL ontology schema (`NiSuperAlloy_Ont_GEN.rdf`).
-4.  **Enrich GraphDB**: Creates the repository (if missing) and uploads both the ontology and the JSONL data to GraphDB.
-5.  **Ingest to Weaviate**: Creates the Weaviate schema and imports the enriched data from GraphDB.
+3.  **Enrich Data**: Runs `enrich_jsonl_with_features.py` to compute metallurgical features (e.g., density, Phase stability) and saves to `final_enriched.jsonl`.
+4.  **Build Ontology**: Generates the OWL ontology schema (`NiSuperAlloy_Ont_GEN.rdf`).
+5.  **Enrich GraphDB**: Creates the repository (if missing) and uploads both the ontology and the JSONL data to GraphDB.
+6.  **Ingest to Weaviate**: Creates the Weaviate schema and imports the enriched data from GraphDB.
+
+## Configuration
+The pipeline uses environment variables which can be overridden:
+- `GRAPHDB_URL`: Default `http://localhost:7200`
+- `GRAPHDB_REPO`: Default `NiSuperAlloy`
+- `WEAVIATE_HOST`: Default `localhost`
+- `WEAVIATE_PORT`: Default `8081`
 
 ## Prerequisites
 
