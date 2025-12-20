@@ -147,6 +147,13 @@ def build_graph(json_path: str) -> Graph:
                     except (ValueError, SyntaxError):
                         log.warning(f"Skipping invalid JSON line: {line[:50]}...")
 
+    primary_compositions = {}
+    for alloy_data in alloys:
+        name = alloy_data.get("alloy")
+        comp = alloy_data.get("composition")
+        if name and comp and name not in primary_compositions:
+            primary_compositions[name] = comp
+
     elements_seen = set()
 
     for alloy_data in alloys:
@@ -243,7 +250,19 @@ def build_graph(json_path: str) -> Graph:
         except Exception as e:
             log.warning(f"Failed to compute features for {alloy_name}: {e}")
 
-        c_uri = mint_stable("Comp", alloy_name)
+        composition = alloy_data.get("composition", {})
+        has_own_comp = bool(composition)
+
+        if not has_own_comp:
+            composition = primary_compositions.get(alloy_name, {})
+
+        if has_own_comp:
+            c_uri = mint_stable("Comp", unique_token)
+            comp_seed = unique_token
+        else:
+            c_uri = mint_stable("Comp", alloy_name)
+            comp_seed = alloy_name
+
         g.add((c_uri, RDF.type, NS.Composition))
         g.add((v_uri, NS.hasComposition, c_uri))
 
@@ -251,7 +270,6 @@ def build_graph(json_path: str) -> Graph:
         if others:
             g.add((c_uri, NS.otherConstituents, Literal(others)))
 
-        composition = alloy_data.get("composition", {})
         for elem_symbol, elem_data in composition.items():
             if elem_symbol == "other": continue
             
@@ -261,7 +279,7 @@ def build_graph(json_path: str) -> Graph:
                 g.add((e_uri, RDFS.label, Literal(elem_symbol)))
                 elements_seen.add(elem_symbol)
 
-            add_comp_entry(g, c_uri, mint_stable("Element", elem_symbol), elem_data, alloy_name)
+            add_comp_entry(g, c_uri, mint_stable("Element", elem_symbol), elem_data, comp_seed)
 
         for prop_key, prop_class in PROPERTY_MAP.items():
             measurements = alloy_data.get(prop_key, [])
