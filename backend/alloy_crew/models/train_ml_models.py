@@ -1,4 +1,5 @@
 import json
+import os
 import numpy as np
 import pandas as pd
 import xgboost as xgb
@@ -32,29 +33,34 @@ def load_data_for_target(filepath: str, target_metric: str):
             try:
                 entry = json.loads(line)
                 alloy_name = entry.get('alloy', 'Unknown')
-                
+
                 base_feats = flatten_dict(entry.get('computed_features', {}))
-                
+
                 base_feats['family'] = entry.get('family', 'unknown')
-                base_feats['TCP_risk'] = base_feats.get('TCP_risk', 'unknown') 
-                
-                variants = entry.get('variants', [])
-                for variant in variants:
-                    mech = variant.get('mechanical_properties', {})
+
+                measurements = entry.get(target_metric)
+
+                if not measurements or not isinstance(measurements, list):
+                    continue
                     
-                    measurements = mech.get(target_metric)
+                for point in measurements:
+                    if point.get('value') is None:
+                        continue
+
+                    row = base_feats.copy()
+
+                    try:
+                        t_val = point.get('temp_c', 20)
+                        row['test_temperature_c'] = float(t_val)
+                    except (ValueError, TypeError):
+                        row['test_temperature_c'] = 20.0
+                        
+                    row['target'] = float(point['value'])
+                    row['alloy_name'] = alloy_name
                     
-                    if not measurements or not isinstance(measurements, list): continue
-                        
-                    for point in measurements:
-                        row = base_feats.copy()
-                        row['test_temperature_c'] = point.get('temp_c', 20)
-                        row['target'] = point.get('value')
-                        row['alloy_name'] = alloy_name
-                        
-                        if row['target'] is not None:
-                            rows.append(row)
-            except Exception: continue
+                    rows.append(row)
+            except Exception as e:
+                continue
     
     df = pd.DataFrame(rows)
     # Fill missing values (sparse features) with 0
@@ -120,32 +126,36 @@ def train_model(df, target_name, rf_params=None, xgb_params=None):
 
 
 if __name__ == "__main__":
-    # DATA_FILE = "/Users/alexlecu/PycharmProjects/AlloyMind/backend/scrape/combined_alloys_20251206.jsonl"
-    DATA_FILE = "/Users/alexlecu/PycharmProjects/AlloyMind/backend/alloy_crew/final_enriched.jsonl"
+    # Use absolute or safe relative path
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    DATA_FILE = os.path.join(current_dir, "training_data", "final_alloy_data_enriched.jsonl")
 
     targets = {
         "ys":  {
-            "key": "yield_strength_mpa",   
+            "key": "yield_strength",   
             "name": "Yield Strength",
             "rf_params": {'n_estimators': 200, 'min_samples_split': 2, 'min_samples_leaf': 1, 'max_features': 'log2', 'max_depth': 20, 'random_state': 42},
             "xgb_params": {'subsample': 0.9, 'n_estimators': 500, 'max_depth': 7, 'learning_rate': 0.05, 'colsample_bytree': 0.9, 'random_state': 42}
         },
         "uts": {
-            "key": "tensile_strength_mpa", 
+            "key": "uts", 
             "name": "Tensile Strength",
             "rf_params": {'n_estimators': 500, 'min_samples_split': 2, 'min_samples_leaf': 1, 'max_features': 'sqrt', 'max_depth': 10, 'random_state': 42},
             "xgb_params": {'subsample': 0.7, 'n_estimators': 500, 'max_depth': 5, 'learning_rate': 0.01, 'colsample_bytree': 0.8, 'random_state': 42}
         },
         "el":  {
-            "key": "elongation_pct",       
+            "key": "elongation",       
             "name": "Elongation",
             "rf_params": {'n_estimators': 500, 'min_samples_split': 2, 'min_samples_leaf': 1, 'max_features': 'sqrt', 'max_depth': 10, 'random_state': 42},
             "xgb_params": {'subsample': 0.8, 'n_estimators': 300, 'max_depth': 7, 'learning_rate': 0.1, 'colsample_bytree': 0.9, 'random_state': 42}
         }
     }
 
+    model_output_dir = os.path.join(current_dir, "saved_models")
+    os.makedirs(model_output_dir, exist_ok=True)
+
     for model_id, config in targets.items():
-        filename = f"model_{model_id}.pkg"
+        filename = os.path.join(model_output_dir, f"model_{model_id}.pkg")
 
         df = load_data_for_target(DATA_FILE, config["key"])
         if not df.empty:
@@ -156,5 +166,6 @@ if __name__ == "__main__":
                 xgb_params=config.get("xgb_params")
             )
             joblib.dump({'model': model, 'features': features}, filename)
+            print(f"Saved model to {filename}")
         else:
             print(f"Warning: No data found for {config['name']}")

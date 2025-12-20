@@ -24,8 +24,9 @@ class AlloyPredictor:
     def get_shared_predictor(model_dir=None):
         """Returns a singleton instance of AlloyPredictor to avoid reloading models."""
         if model_dir is None:
-            # Default to the directory where this script is located
-            model_dir = os.path.dirname(os.path.abspath(__file__))
+            # Default to the 'saved_models' directory relative to this script
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            model_dir = os.path.join(current_dir, "saved_models")
             
         global _SHARED_PREDICTOR
         if _SHARED_PREDICTOR is None:
