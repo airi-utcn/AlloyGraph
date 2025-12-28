@@ -71,23 +71,39 @@ def calculate_density(composition: Dict[str, float]) -> float:
 
 
 def estimate_gamma_prime_vol_pct(at_percent: Dict[str, float]) -> float:
-    """Estimate gamma prime volume fraction from composition."""
-    gp_formers = (
-        at_percent.get("Al", 0) +
-        at_percent.get("Ti", 0) +
-        0.6 * at_percent.get("Nb", 0) +
-        0.5 * at_percent.get("Ta", 0)
+    """
+    Estimate gamma prime volume fraction from composition.
+    Includes a solubility limit check: if Ti+Al+Nb+Ta is low, assume it stays in solution.
+    """
+    ti = at_percent.get("Ti", 0)
+    al = at_percent.get("Al", 0)
+    nb = at_percent.get("Nb", 0)
+    ta = at_percent.get("Ta", 0)
+    
+    gp_formers_total = ti + al + nb + ta
+    
+    if gp_formers_total < 4.5:
+        return round(0.5 * gp_formers_total, 1)
+        
+    gp_formers_effective = (
+        al + ti + 0.6 * nb + 0.5 * ta
     )
-    return round(min(2.5 * gp_formers, 80), 1)
+    return round(min(2.5 * gp_formers_effective, 80), 1)
 
 
-def compute_alloy_features(alloy: Dict[str, Any]) -> Dict[str, Any]:
+def compute_alloy_features(alloy_or_comp: Dict[str, Any]) -> Dict[str, Any]:
     """
     Main entry point to compute all features for an alloy.
+    Supports either:
+    1. A direct composition dict: {"Ni": 60, "Al": 5}
+    2. An alloy record dict: {"name": "X", "composition": {"Ni": 60...}}
     """
-    raw_comp = alloy.get("composition", {})
-    # Sanitize: Keep only numeric values (ignore 'other', 'balance', strings)
-    composition = {k: v for k, v in raw_comp.items() if isinstance(v, (int, float))}
+    if "composition" in alloy_or_comp and isinstance(alloy_or_comp["composition"], dict):
+        raw_comp = alloy_or_comp["composition"]
+    else:
+        raw_comp = alloy_or_comp
+
+    composition = {str(k): float(v) for k, v in raw_comp.items() if isinstance(v, (int, float))}
 
     at_percent = wt_to_at_percent(composition)
     md_avg = calculate_md_avg(at_percent)

@@ -35,6 +35,6 @@ Provides a clean API for the rest of the application:
 ## Accuracy (Current Benchmarks)
 | Metric | Avg R² (5-Fold CV) |
 | :--- | :--- |
-| Yield Strength | ~0.74 |
-| Tensile Strength | ~0.68 |
-| Elongation | ~0.36 |
+| Yield Strength | ~0.743 |
+| Tensile Strength | ~0.712 |
+| Elongation | ~0.418 |

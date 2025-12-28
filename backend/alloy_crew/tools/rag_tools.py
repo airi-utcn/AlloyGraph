@@ -102,7 +102,7 @@ class AlloySearchTool(BaseTool):
     )
     args_schema: Type[BaseModel] = AlloySearchInput
 
-    def _run(self, composition: Dict[str, float], limit: int = 3, **kwargs: Any) -> str:
+    def _run(self, composition: Dict[str, float], limit: int = 3, **kwargs: Any) -> Any:
         
         client = None
         try:
@@ -240,12 +240,12 @@ class AlloySearchTool(BaseTool):
                             
                             if "stress" in m:
                                 stress = round(m.get("stress") or 0.0, 0)
-                                summary_list.append(str(f"Life: {val}{unit}, Temp: {temp}C, Stress: {stress}MPa"))
+                                summary_list.append(f"Life: {val}{unit}, Temp: {temp}C, Stress: {stress}MPa")
                             else:
                                 if unit:
-                                    summary_list.append(str(f"{val} {unit} @ {temp}C"))
+                                    summary_list.append(f"{val} {unit} @ {temp}C")
                                 else:
-                                    summary_list.append(str(f"{val} @ {temp}C"))
+                                    summary_list.append(f"{val} @ {temp}C")
                         serialized["properties"][prop] = ", ".join(summary_list)
                 
                 final_output.append(serialized)
