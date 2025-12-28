@@ -36,7 +36,7 @@ def load_data_for_target(filepath: str, target_metric: str):
 
                 base_feats = flatten_dict(entry.get('computed_features', {}))
 
-                base_feats['family'] = entry.get('family', 'unknown')
+                base_feats['processing'] = entry.get('processing', 'unknown')
 
                 measurements = entry.get(target_metric)
 
@@ -121,8 +121,13 @@ def train_model(df, target_name, rf_params=None, xgb_params=None):
     print(f"  > Avg MAE: {np.mean(mae_scores):.2f}")
     print(f"  > Avg R² : {np.mean(r2_scores):.3f}")
     
+    metrics = {
+        "avg_mae": np.mean(mae_scores),
+        "avg_r2": np.mean(r2_scores)
+    }
+    
     pipeline.fit(X, y)
-    return pipeline, feature_names
+    return pipeline, feature_names, metrics
 
 
 if __name__ == "__main__":
@@ -159,13 +164,13 @@ if __name__ == "__main__":
 
         df = load_data_for_target(DATA_FILE, config["key"])
         if not df.empty:
-            model, features = train_model(
+            model, features, metrics = train_model(
                 df, 
                 config["name"],
                 rf_params=config.get("rf_params"),
                 xgb_params=config.get("xgb_params")
             )
             joblib.dump({'model': model, 'features': features}, filename)
-            print(f"Saved model to {filename}")
+            print(f"Saved model to {filename} (R2={metrics['avg_r2']:.3f})")
         else:
             print(f"Warning: No data found for {config['name']}")
