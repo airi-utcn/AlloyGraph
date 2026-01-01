@@ -193,10 +193,23 @@ class AlloySearchTool(BaseTool):
                     except Exception:
                         pass
 
+                # Normalize compositions for fair comparison
+                def normalize_comp(c):
+                    total = sum(c.values())
+                    if total == 0: return c
+                    return {k: (v/total)*100 for k, v in c.items()}
+                
+                test_norm = normalize_comp(composition)
+                cand_norm = normalize_comp(candidate["composition"])
+                
+                # Calculate distance on normalized compositions
                 dist = 0.0
-                for el, target_wt in composition.items():
-                    actual_val = candidate["composition"].get(el, 0.0)
-                    dist += (target_wt - actual_val) ** 2
+                all_keys = set(test_norm.keys()) | set(cand_norm.keys())
+                for k in all_keys:
+                    v1 = test_norm.get(k, 0.0)
+                    v2 = cand_norm.get(k, 0.0)
+                    dist += (v1 - v2) ** 2
+                dist = dist ** 0.5
                 
                 candidate["_distance"] = dist
                 candidates.append(candidate)
