@@ -88,7 +88,7 @@ class AlloyPredictor:
             df_aligned = df_raw.reindex(columns=req_cols)
             
             # B. Smart Fill
-            cat_cols = ['processing', 'family', 'TCP_risk', 'alloy_name']
+            cat_cols = ['processing', 'TCP_risk', 'alloy_name']
             
             for col in df_aligned.columns:
                 if col in cat_cols:
