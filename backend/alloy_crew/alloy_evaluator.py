@@ -11,9 +11,6 @@ class ValidationOutput(BaseModel):
     temperature_c: int
     composition_wt_percent: Dict[str, float]
     ml_prediction: Dict[str, Any]
-    in_domain: bool
-    domain_distance: float = 0.0
-    model_version: str = "v1"
     errors: List[str] = []
 
 class FusionMeta(BaseModel):
@@ -55,17 +52,10 @@ class PhysicsAuditOutput(BaseModel):
     confidence: Dict[str, Any] = Field(default_factory=dict)
     explanation: str = ""
 
-class RepairOutput(BaseModel):
-    composition_wt_percent: Dict[str, float]
-    process_route: str
-    notes: str = ""
-
-
 class AlloyEvaluationCrew:
     def __init__(self, llm_config=None):
         # Initialize agents with optional local LLM config
         self.agents_map = get_agents(llm=llm_config)
-        self.designer = self.agents_map['designer']
         self.validator = self.agents_map['validator']
         self.arbitrator = self.agents_map['arbitrator']
         self.physicist = self.agents_map['physicist']
