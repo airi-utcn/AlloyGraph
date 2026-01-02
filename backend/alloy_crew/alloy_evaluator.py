@@ -181,8 +181,7 @@ class AlloyEvaluationCrew:
                     "6. CRITICAL: Output the tool's JSON with your explanation added.\n"
                     "   - Do NOT modify verified_properties, property_intervals, or confidence\n"
                     "   - Ensure 'property_intervals' matches the tool output EXACTLY (do not simplify to lists)\n"
-                    "   - ONLY update explanation field\n"
-                    "   - Keep 'verified_properties' as 'properties' for schema compatibility"
+                    "   - ONLY update explanation field"
             ),
             expected_output="Valid structured output with physics audit results.",
             output_pydantic=PhysicsAuditOutput,

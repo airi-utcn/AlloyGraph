@@ -381,7 +381,7 @@ class DataFusionTool(BaseTool):
             output = {
                 "summary": f"Data Fusion Complete. Status: {kg_note}",
                 "processing": detected_family,
-                "properties": final_properties_flat,
+                "anchored_properties": final_properties_flat,
                 "property_intervals": final_intervals,
                 "metallurgy_metrics": metrics,
                 "fusion_meta": {
