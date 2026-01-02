@@ -87,6 +87,13 @@ class AlloyEvaluationCrew:
             warnings.append(f"Composition sums to {total:.1f}%, which exceeds 100%. This may indicate an error.")
         elif abs(total - 100.0) > 2.0:
             warnings.append(f"Composition sums to {total:.1f}% (expected ~100%).")
+        
+        # Reject if total is way off
+        if total < 90.0 or total > 110.0:
+            raise ValueError(
+                f"Composition total ({total:.1f}%) is outside acceptable range (90-110%). "
+                f"Please check your input values."
+            )
 
         return {
             "composition": {k: round(v, 3) for k, v in cleaned.items()},
