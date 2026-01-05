@@ -1,61 +1,15 @@
 from typing import Dict, Any, List, Optional, Union, Literal
 import json
 from crewai import Task, Crew, Process
-from .agents import get_agents
+from .agents import get_evaluation_agents
 from .tools.rag_tools import AlloySearchTool
-from pydantic import BaseModel, Field
+from .schemas import ValidationOutput, ArbitrationOutput, PhysicsAuditOutput
 
-
-class ValidationOutput(BaseModel):
-    status: Literal["OK", "FAIL"]
-    temperature_c: int
-    composition_wt_percent: Dict[str, float]
-    ml_prediction: Dict[str, Any]
-    errors: List[str] = []
-
-class FusionMeta(BaseModel):
-    kg_similarity_max: float = 0.0
-    ml_weight: float = 0.0
-    kg_weight: float = 0.0
-    data_conflict: bool = False
-    is_kg_anchored: bool = False
-
-class ArbitrationOutput(BaseModel):
-    status: str
-    summary: str = Field("", description="Summary of Data Fusion (e.g. contains 'Anchoring')")
-    processing: Literal["cast", "wrought", "unknown"] = Field(..., description="Alloy processing type (cast/wrought)")
-    penalty_score: float
-    tcp_risk: str
-    properties: Dict[str, Any]
-    property_intervals: Dict[str, Any] = Field(default_factory=dict, description="Uncertainty intervals for properties")
-    metallurgy_metrics: Dict[str, Any] = {}
-    fusion_meta: FusionMeta
-    confidence: Dict[str, Any] = Field(default_factory=dict)
-    errors: List[str] = []
-
-class AuditPenalty(BaseModel):
-    name: str
-    value: Union[float, str]
-    reason: str
-
-class PhysicsAuditOutput(BaseModel):
-    status: Literal["PASS", "REJECT", "FAIL"]
-    processing: str = Field(..., description="Alloy processing type (cast/wrought/unknown)")
-    penalty_score: float = 0.0
-    tcp_risk: str = "LOW"
-    properties: Dict[str, Any]
-    property_intervals: Dict[str, Any] = Field(default_factory=dict, description="Uncertainty intervals for properties")
-    metallurgy_metrics: Dict[str, Any]
-    audit_penalties: List[AuditPenalty] = []
-    recommended_repairs: List[str] = []
-    errors: List[str] = []
-    confidence: Dict[str, Any] = Field(default_factory=dict)
-    explanation: str = ""
 
 class AlloyEvaluationCrew:
     def __init__(self, llm_config=None):
         # Initialize agents with optional local LLM config
-        self.agents_map = get_agents(llm=llm_config)
+        self.agents_map = get_evaluation_agents(llm=llm_config)
         self.validator = self.agents_map['validator']
         self.arbitrator = self.agents_map['arbitrator']
         self.physicist = self.agents_map['physicist']
