@@ -216,7 +216,7 @@ class MetallurgyVerifierTool(BaseTool):
                 "property_intervals": input_data.get("property_intervals", {}),  # Pass through intervals from fusion/ML
                 "metallurgy_metrics": {
                     "md_average": round(md_avg, 3),
-                    "tcp_risk": "High" if md_avg > 0.985 else "Low",
+                    "tcp_risk": "High" if md_avg > 1.02 else ("Medium" if md_avg > 0.99 else "Low"),
                     "sss_wt_pct": round(sss_wt, 2),
                     "base_contribution": int(BASE_STRENGTH)
                 },

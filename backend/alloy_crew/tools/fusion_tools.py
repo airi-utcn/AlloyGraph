@@ -11,6 +11,7 @@ class DataFusionInput(BaseModel):
     rag_context: str = Field(..., description="JSON string from RAG search tools containing known alloy records.")
     target_temperature_c: float = Field(..., description="The temperature at which to evaluate properties (Celsius).")
     processing: str = Field(default="unknown", description="Processing type: 'cast', 'wrought', or 'unknown'.")
+    mode: str = Field(default="evaluate", description="Fusion mode: 'design' (trust ML more) or 'evaluate' (trust KG more).")
 
 class DataFusionTool(BaseTool):
     name: str = "DataFusionTool"
@@ -20,7 +21,7 @@ class DataFusionTool(BaseTool):
     )
     args_schema: Type[BaseModel] = DataFusionInput
 
-    def _smooth_kg_weight(self, distance: float, pivot: float = 2.5, softness: float = 0.5) -> float:
+    def _smooth_kg_weight(self, distance: float, pivot: float = 2.5, softness: float = 0.5, mode: str = "evaluate") -> float:
         """
         Calculate smooth KG weight using sigmoid function.
         
@@ -31,6 +32,7 @@ class DataFusionTool(BaseTool):
             distance: Compositional distance to KG candidate
             pivot: Center point of transition (d₀) - 50% weight at this distance
             softness: Controls transition steepness (s) - higher = more gradual
+            mode: "evaluate" (trust KG heavily) or "design" (trust ML more)
         
         Returns:
             KG weight between 0 and 1
@@ -42,7 +44,12 @@ class DataFusionTool(BaseTool):
             distance=3.0: ~0.02 (2% KG)
             distance=4.0: ~0.001 (0.1% KG, essentially pure ML)
         """
-        return 1.0 / (1.0 + math.exp((distance - pivot) / softness))
+        base_weight = 1.0 / (1.0 + math.exp((distance - pivot) / softness))
+
+        if mode == "design":
+            return base_weight * 0.3
+        else:
+            return base_weight
 
     def _calculate_confidence(
         self, 
@@ -276,11 +283,15 @@ class DataFusionTool(BaseTool):
 
             # 4. FUSION WEIGHTING - Smooth sigmoid-based weighting
             if is_valid_match:
-                # Use smooth sigmoid weighting based on compositional distance
-                kg_weight = self._smooth_kg_weight(similarity_dist, pivot=2.5, softness=0.5)
+                # Get mode from input (design vs evaluate)
+                fusion_mode = kwargs.get("mode", "evaluate")
+                
+                # Use smooth sigmoid weighting based on compositional distance and mode
+                kg_weight = self._smooth_kg_weight(similarity_dist, pivot=2.5, softness=0.5, mode=fusion_mode)
                 ml_weight = 1.0 - kg_weight
                 
-                kg_note = f"Anchoring to {matched_candidate.get('name')} (Dist: {similarity_dist:.2f}, KG Weight: {kg_weight:.1%})"
+                mode_note = f"[{fusion_mode.upper()} MODE]" if fusion_mode == "design" else ""
+                kg_note = f"Anchoring to {matched_candidate.get('name')} (Dist: {similarity_dist:.2f}, KG Weight: {kg_weight:.1%}) {mode_note}"
                 
                 # Calculate fusion agreement between ML and KG predictions
                 ml_props = {
