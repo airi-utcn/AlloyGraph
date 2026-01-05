@@ -2,6 +2,44 @@ from pydantic import BaseModel, Field, model_validator, field_validator
 from typing import Dict, Optional, Literal, List, Any, Union
 
 
+# =============================================================================
+# Optimizations Tool Schemas
+# =============================================================================
+
+class ElementSuggestion(BaseModel):
+    """Single element adjustment suggestion."""
+    element: str
+    current_wt: float
+    suggested_wt: float
+    delta_wt: float
+    reason: str
+    expected_md_change: float = 0.0
+    expected_gp_change: float = 0.0
+    trade_offs: str = ""
+
+
+class SuggestionGroup(BaseModel):
+    """Group of related suggestions to address a specific issue."""
+    issue: str
+    priority: Literal["CRITICAL", "HIGH", "MEDIUM", "LOW"]
+    suggestions: List[ElementSuggestion]
+    rationale: str
+
+
+class CompositionSensitivityInput(BaseModel):
+    """Input for composition sensitivity analysis."""
+    composition: Dict[str, float] = Field(..., description="Current alloy composition in wt%")
+    target_properties: Dict[str, float] = Field(..., description="Target properties to achieve")
+    current_properties: Dict[str, float] = Field(..., description="Current predicted properties")
+    failure_reasons: List[str] = Field(..., description="List of failure reasons from validation")
+    processing: Literal["cast", "wrought"] = Field("cast", description="Processing route")
+
+
+# =============================================================================
+# Design Output Schemas
+# =============================================================================
+
+
 class AlloyCompositionSchema(BaseModel):
     """
     Scientific Data Contract for an Alloy Composition.
