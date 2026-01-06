@@ -19,3 +19,9 @@ Tests the `AlloyPredictorTool` wrapper for CrewAI. It validates the tool signatu
 
 ### 🧪 Step 2: RAG Tool (`test_step_2_rag_tool.py`)
 Verifies the `AlloySearchTool` integration with Weaviate. Tests connectivity, property retrieval, and the multi-step GraphQL fetch logic.
+
+### 🧪 Step 3.1: Evaluator - Good Alloy (`test_step_3_1_evaluator.py`)
+Tests the `AlloyEvaluationCrew` with a valid Ni-based superalloy composition. Validates ML predictions, physics verification (TCP risk, Md calculation), and confidence scoring. Ensures PASS status for metallurgically sound compositions.
+
+### 🧪 Step 3.2: Evaluator - Bad Alloy (`test_step_3_2_evaluator.py`)
+Tests the `AlloyEvaluationCrew` with a problematic composition (excessive Re → high TCP risk). Verifies that the system correctly identifies phase instability issues (Md > 0.99) and returns appropriate status (REJECT or FAIL with penalties).
