@@ -215,50 +215,11 @@ def main():
                     print(f"\n💭 Consider:")
                     print(f"   • --processing cast (easier manufacturing, slightly lower strength)")
                     print(f"   • Lower target if TCP risk is unacceptable")
-            
+
             # Generate human-readable summary
-            try:
-                from .agents import create_summarizer_agent
-                from crewai import Agent, Task, Crew
-                
-                summarizer = create_summarizer_agent()
-                
-                # Prepare context for summary
-                comp_str = ", ".join([f"{elem}: {wt:.1f}%" for elem, wt in sorted(result['composition'].items(), key=lambda x: x[1], reverse=True)[:5]])
-                
-                summary_task = Task(
-                    description=(
-                        f"Generate a 3-paragraph summary for this alloy design:\n\n"
-                        f"**Target**: Yield Strength ≥ {args.yield_strength} MPa at {args.temperature}°C ({args.processing} processing)\n\n"
-                        f"**Designed Composition**: {comp_str}, ...\n\n"
-                        f"**Achieved Properties**:\n"
-                        f"- Yield Strength: {props.get('Yield Strength', 'N/A')} MPa\n"
-                        f"- Tensile Strength: {props.get('Tensile Strength', 'N/A')} MPa\n"
-                        f"- Elongation: {props.get('Elongation', 'N/A')}%\n"
-                        f"- Gamma Prime: {props.get('Gamma Prime', 'N/A')} vol%\n\n"
-                        f"**Physics Audit**:\n"
-                        f"- TCP Risk: {result.get('tcp_risk', 'Unknown')}\n"
-                        f"- Violations: {len(result.get('audit_penalties', []))}\n\n"
-                        f"Explain (1) What was designed, (2) Performance vs target, (3) Trade-offs and recommendations."
-                    ),
-                    expected_output="3-paragraph technical summary in clear language",
-                    agent=summarizer
-                )
-                
-                summary_crew = Crew(
-                    agents=[summarizer],
-                    tasks=[summary_task],
-                    verbose=False
-                )
-                
-                summary_result = summary_crew.kickoff()
-                
+            if result.get('explanation'):
                 print(f"\n📖 Alloy Design Summary:")
-                print(f"\n{summary_result.raw}\n")
-                
-            except Exception as summary_error:
-                # Don't fail the whole process if summary generation fails
-                print(f"\n⚠️  Could not generate summary: {summary_error}")
+                print(f"\n{result['explanation']}\n")
         
         print("="*60)
 

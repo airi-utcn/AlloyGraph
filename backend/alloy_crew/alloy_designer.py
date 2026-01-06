@@ -13,12 +13,12 @@ class IterativeDesignCrew:
         self.target_props = target_props
         self.agents = get_design_agents()
 
-
         self.designer = self.agents["designer"]
         self.optimization_advisor = self.agents["optimization_advisor"]
         self.validator = self.agents["validator"]
         self.arbitrator = self.agents["arbitrator"]
         self.physicist = self.agents["physicist"]
+        self.summarizer = self.agents["summarizer"]
 
 
         self.min_yield = float(target_props.get("Yield Strength", 0))
@@ -244,6 +244,43 @@ class IterativeDesignCrew:
                         print(f"⚠️  Corrected hallucinated {prop_name}: {phys_value:.1f} → {ml_value:.1f}")
                         physics_output.properties[prop_name] = ml_value
 
+        # Generate comprehensive summary using Summarizer Agent
+        try:
+            summarizer = self.summarizer  # Use from __init__
+            comp_str = ", ".join([f"{elem}: {wt:.1f}%" for elem, wt in sorted(designer_comp.items(), key=lambda x: x[1], reverse=True)[:5]])
+            
+            summary_task = Task(
+                description=(
+                    f"Generate a 3-paragraph summary for this alloy design:\n\n"
+                    f"**Target**: Yield Strength ≥ {self.min_yield} MPa, Density ≤ {self.max_density} g/cm³\n\n"
+                    f"**Designed Composition**: {comp_str}, ...\n\n"
+                    f"**Achieved Properties**:\n"
+                    f"- Yield Strength: {physics_output.properties.get('Yield Strength', 'N/A')} MPa\n"
+                    f"- Tensile Strength: {physics_output.properties.get('Tensile Strength', 'N/A')} MPa\n"
+                    f"- Elongation: {physics_output.properties.get('Elongation', 'N/A')}%\n"
+                    f"- Gamma Prime: {physics_output.properties.get('Gamma Prime', 'N/A')} vol%\n\n"
+                    f"**Physics Audit**:\n"
+                    f"- TCP Risk: {physics_output.tcp_risk}\n"
+                    f"- Violations: {len(physics_output.audit_penalties)}\n\n"
+                    f"Explain (1) What was designed, (2) Performance vs target, (3) Trade-offs and recommendations."
+                ),
+                expected_output="3-paragraph technical summary in clear language",
+                agent=summarizer
+            )
+            
+            summary_crew = Crew(
+                agents=[summarizer],
+                tasks=[summary_task],
+                verbose=False
+            )
+            
+            summary_result = summary_crew.kickoff()
+            summary_text = str(summary_result.raw) if hasattr(summary_result, 'raw') else str(summary_result)
+            
+        except Exception as e:
+            print(f"⚠️  Could not generate summary: {e}")
+            summary_text = physics_output.explanation  # Fallback to physicist explanation
+
         return {
             "composition": designer_comp,
             "processing": processed_route,
@@ -251,7 +288,7 @@ class IterativeDesignCrew:
             "property_intervals": physics_output.property_intervals,
             "metallurgy_metrics": physics_output.metallurgy_metrics,
             "confidence": physics_output.confidence,
-            "explanation": physics_output.explanation,
+            "explanation": summary_text,
             "novelty": novelty_new_design,
             "penalty_score": physics_output.penalty_score,
             "tcp_risk": physics_output.tcp_risk,
