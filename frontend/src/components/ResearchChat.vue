@@ -1,7 +1,9 @@
 <script setup>
 import { ref, nextTick } from 'vue'
 import axios from 'axios'
+
 import { API_BASE_URL } from '../config'
+import AlloyCard from './AlloyCard.vue'
 
 // Generate unique session ID
 const generateSessionId = () => {
@@ -16,6 +18,14 @@ const input = ref('')
 const loading = ref(false)
 const messagesContainer = ref(null)
 const inputField = ref(null)
+const emit = defineEmits(['design'])
+
+// UI State
+const isExpanded = ref(false)
+const toggleExpand = () => {
+  isExpanded.value = !isExpanded.value
+  scrollToBottom()
+}
 
 const scrollToBottom = async () => {
   await nextTick()
@@ -35,48 +45,110 @@ const focusInput = async () => {
 const sendMessage = async () => {
   if (!input.value.trim()) return
 
-  // Add user message
-  const userMessage = { role: 'user', text: input.value }
-  messages.value.push(userMessage)
+  // 1. Add User Message
   const prompt = input.value
+  messages.value.push({ role: 'user', text: prompt })
   input.value = ''
   loading.value = true
+  
+  // Assistant message will be created when first chunk arrives
+  let assistantMsg = null
+  scrollToBottom()
 
   try {
-    // Build conversation history for context
-    // Include both user messages and assistant (system) responses
+    // 3. Prepare History
     const history = messages.value
-      .slice(0, -1) // Exclude the current message we just added
+      .slice(0, -1)  // Exclude only current user message
       .map(m => ({
         role: m.role === 'system' ? 'assistant' : m.role,
         content: m.text
       }))
-    
-    const res = await axios.post(`${API_BASE_URL}/api/chat`, { 
-      prompt,
-      sessionId: sessionId.value,
-      history: history
+
+    // 4. Start Streaming Request
+    const response = await fetch(`${API_BASE_URL}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        prompt, 
+        sessionId: sessionId.value, 
+        history 
+      })
     })
+
+    if (!response.ok) throw new Error(response.statusText)
+
+    // 5. Read stream
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() // Keep incomplete line in buffer
+
+      for (const line of lines) {
+        if (!line.trim()) continue
+        try {
+          const chunk = JSON.parse(line)
+          
+          // Create assistant message on first chunk (avoids empty bubble)
+          if (!assistantMsg && (chunk.type === 'data' || chunk.type === 'chunk')) {
+            assistantMsg = {
+              role: 'assistant',
+              display: '',
+              text: '',
+              alloys: [],
+              toolSuggestion: null
+            }
+            messages.value.push(assistantMsg)
+          }
+          
+          if (chunk.type === 'data') {
+            // Received Alloy Data
+            assistantMsg.alloys = chunk.alloys || []
+          } 
+          else if (chunk.type === 'chunk' || chunk.type === 'text_chunk' || chunk.type === 'string_chunk') {
+            // Received Text Chunk
+            assistantMsg.display += chunk.content
+            assistantMsg.text += chunk.content
+            scrollToBottom()
+          }
+          else if (chunk.type === 'tool_suggestion') {
+            // Received Tool Suggestion
+            assistantMsg.toolSuggestion = {
+              tool: chunk.tool,
+              message: chunk.message
+            }
+          }
+          else if (chunk.type === 'error') {
+            assistantMsg.display += `\n[Error: ${chunk.content}]`
+          }
+        } catch (e) {
+          // Silently skip malformed chunks
+        }
+      }
+    }
     
-    // Store the full response (with metadata) for context
-    const fullResponse = res.data.result
-    
-    // Remove metadata from display: [Queried alloys: ...]
-    const displayResponse = fullResponse.replace(/^\[Queried alloys:[^\]]+\]\n\n/i, '')
-    
-    messages.value.push({ 
-      role: 'system', 
-      text: fullResponse,
-      display: displayResponse
-    })
+    // Final scroll
     scrollToBottom()
     focusInput()
+
   } catch (error) {
-    messages.value.push({ role: 'system', text: 'Error: ' + error.message })
-    scrollToBottom()
-    focusInput()
+    if (assistantMsg) assistantMsg.display += `\n[Communication Error: ${error.message}]`
+    scrollToBottom() 
   } finally {
     loading.value = false
+  }
+}
+
+const handleToolSuggestion = (tool, msg) => {
+  if (tool === 'designer') {
+    const payload = (msg.alloys && msg.alloys.length > 0) ? msg.alloys[0] : null
+    emit('design', payload)
   }
 }
 
@@ -91,15 +163,32 @@ const clearChat = () => {
 </script>
 
 <template>
-  <div class="chat-container">
-    <h2>🔬 Research Knowledge Graph</h2>
-    <div ref="messagesContainer" class="messages">
-      <div 
-        v-for="(msg, i) in messages" 
-        :key="i" 
-        :class="['message', msg.role]"
-      >
-        <div class="bubble">{{ msg.display || msg.text }}</div>
+  <div :class="['chat-container', { expanded: isExpanded }]">
+    <!-- Header -->
+    <div class="chat-header">
+      <h2>Research Assistant</h2>
+      <button class="expand-btn" @click="toggleExpand" :title="isExpanded ? 'Collapse' : 'Expand'">
+        <span class="icon">{{ isExpanded ? '↙️' : '↗️' }}</span>
+      </button>
+    </div>
+
+    <!-- Messages -->
+    <div class="messages" ref="messagesContainer">
+      <div v-for="(msg, index) in messages" :key="index" :class="['message', msg.role]">
+        <div class="bubble">
+          <!-- Text Content -->
+          <div class="text-content">{{ msg.display || msg.text }}</div>
+          
+          <!-- Alloy Data Cards -->
+          <div v-if="msg.alloys && msg.alloys.length" class="alloy-list">
+            <AlloyCard 
+              v-for="alloy in msg.alloys" 
+              :key="alloy.name" 
+              :alloy="alloy"
+              @design="$emit('design', $event)"
+            />
+          </div>
+        </div>
       </div>
       <div v-if="loading" class="message system">
         <div class="bubble">Thinking... 🧠</div>
@@ -135,10 +224,49 @@ const clearChat = () => {
   border-radius: var(--radius-xl);
   padding: var(--space-xl);
   box-shadow: var(--shadow-lg);
+  transition: all 0.3s ease;
+}
+
+.chat-container.expanded {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  right: 20px;
+  bottom: 20px;
+  height: auto;
+  z-index: 1000;
+  border-color: var(--primary);
+  box-shadow: 0 0 50px rgba(0,0,0,0.5);
+}
+
+
+
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-lg);
+}
+
+.expand-btn {
+  background: rgba(255, 255, 255, 0.1);
+  padding: var(--space-xs) var(--space-sm);
+  font-size: 1.2rem;
+  opacity: 0.8;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.expand-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
 }
 
 h2 {
-  margin: 0 0 var(--space-lg) 0;
+  margin: 0;
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-bold);
   color: var(--text-primary);
@@ -254,8 +382,52 @@ button {
   box-shadow: var(--shadow-lg);
 }
 
+.suggestion-btn {
+  margin-top: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, var(--secondary) 0%, #8b5cf6 100%);
+  color: white;
+  border: none;
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-md);
+  transition: all 0.2s ease;
+}
+
+.suggestion-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  filter: brightness(1.1);
+}
+
 button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.expand-btn {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 1.2rem;
+  padding: 0.5rem;
+  width: 2.4rem;
+  height: 2.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.expand-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  border-color: var(--primary);
+  transform: scale(1.05);
 }
 </style>
