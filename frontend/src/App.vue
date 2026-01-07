@@ -7,7 +7,13 @@ import { API_BASE_URL } from './config'
 
 const activeTab = ref('chat')
 const isBackendOnline = ref(false)
+const designContext = ref(null) // Stores alloy data for design handoff
 let healthCheckInterval = null
+
+const handleDesign = (alloy) => {
+  designContext.value = alloy
+  activeTab.value = 'design'
+}
 
 // Check backend health
 const checkBackendHealth = async () => {
@@ -70,10 +76,13 @@ onUnmounted(() => {
     <!-- Content Area -->
     <main class="content-area">
       <transition name="fade" mode="out-in">
-        <div :key="activeTab">
-          <ResearchChat v-if="activeTab === 'chat'" />
-          <AlloyDesigner v-if="activeTab === 'design'" />
-        </div>
+        <KeepAlive>
+          <component 
+            :is="activeTab === 'chat' ? ResearchChat : AlloyDesigner"
+            v-bind="activeTab === 'design' ? { initialAlloy: designContext } : {}"
+            @design="handleDesign"
+          />
+        </KeepAlive>
       </transition>
     </main>
   </div>

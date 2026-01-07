@@ -3,6 +3,14 @@ import { ref, computed, watch } from 'vue'
 import axios from 'axios'
 import { API_BASE_URL } from '../config'
 
+// --- PROPS ---
+const props = defineProps({
+  initialAlloy: {
+    type: Object,
+    default: null
+  }
+})
+
 // --- STATE ---
 const mode = ref('manual') // 'manual' (Composition -> Props) or 'auto' (Props -> Composition)
 const loading = ref(false)
@@ -19,6 +27,28 @@ watch(mode, () => {
 const manualComp = ref({ Ni: 60, Cr: 20, Al: 10, Ti: 5, Co: 5 })
 const manualTemp = ref(20) // Room temperature
 const manualProcessing = ref('cast')  // Processing type for Evaluate mode
+
+// Initialize from prop if available
+const initFromProp = (alloy) => {
+  if (!alloy) return
+  if (alloy.composition) {
+    manualComp.value = { ...alloy.composition }
+  }
+  if (alloy.processing_method) {
+    manualProcessing.value = alloy.processing_method.toLowerCase()
+  }
+  // Reset results when a new alloy is loaded
+  result.value = null
+  mode.value = 'manual'
+}
+
+// Initial check
+if (props.initialAlloy) initFromProp(props.initialAlloy)
+
+// Watch for changes (needed when component is kept alive)
+watch(() => props.initialAlloy, (newVal) => {
+  initFromProp(newVal)
+})
 
 const PRESETS = {
   "Waspaloy": { "Ni": 58.0, "Cr": 19.5, "Co": 13.5, "Mo": 4.3, "Ti": 3.0, "Al": 1.4, "B": 0.006, "Zr": 0.05 },
