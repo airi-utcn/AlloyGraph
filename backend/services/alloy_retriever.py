@@ -1,6 +1,6 @@
 import os
 import json
-from typing import List, Optional, Dict
+from typing import Optional
 from dataclasses import dataclass
 import weaviate
 from weaviate.classes.query import QueryReference
@@ -31,8 +31,8 @@ class AlloyData:
     """Complete alloy data from Weaviate."""
     name: str
     processing_method: str
-    composition: Optional[Dict[str, float]] = None
-    atomic_composition: Optional[Dict[str, float]] = None
+    composition: Optional[dict[str, float]] = None
+    atomic_composition: Optional[dict[str, float]] = None
     density_gcm3: Optional[float] = None
     gamma_prime_vol_pct: Optional[float] = None
     md_avg_c: Optional[float] = None
@@ -40,7 +40,7 @@ class AlloyData:
     sss_wt_pct: Optional[float] = None
     refractory_wt_pct: Optional[float] = None
     gp_formers_wt_pct: Optional[float] = None
-    properties: Optional[List[PropertyMeasurement]] = None
+    properties: Optional[list[PropertyMeasurement]] = None
     
     def __post_init__(self):
         if self.properties is None:
@@ -85,7 +85,7 @@ class AlloyRetriever:
         """Context manager exit."""
         self.close()
     
-    def search_alloys(self, query: str, limit: int = 5) -> List[AlloyData]:
+    def search_alloys(self, query: str, limit: int = 5) -> list[AlloyData]:
         """
         Search for alloys using hybrid search.
 
@@ -162,8 +162,8 @@ class AlloyRetriever:
             props = obj.properties
             
             alloy = AlloyData(
-                name=props.get('name', 'Unknown'),
-                processing_method=props.get('processingMethod', 'Unknown'),
+                name=str(props.get('name', 'Unknown')),
+                processing_method=str(props.get('processingMethod', 'Unknown')),
                 density_gcm3=props.get('densityCalculated'),
                 gamma_prime_vol_pct=props.get('gammaPrimeEstimate'),
                 md_avg_c=props.get('mdAverage'),
@@ -176,18 +176,16 @@ class AlloyRetriever:
                 properties=[]
             )
             
-            # Extract atomic composition if available
             try:
                 ac_json = props.get('atomicCompositionJson')
                 if ac_json:
-                     # It handles nested structure {"atomic_percent": {...}} or direct {...}
                      data = json.loads(ac_json)
                      if "atomic_percent" in data:
                          alloy.atomic_composition = data["atomic_percent"]
                      else:
                          alloy.atomic_composition = data
-            except Exception as e:
-                pass # Silently fail on bad json
+            except Exception:
+                pass
             
             # Extract composition
             if obj.references and "hasComposition" in obj.references:
@@ -245,8 +243,15 @@ class AlloyRetriever:
         
         return alloys
     
+    def get_alloys_with_property(self, property_name_part: str, limit: int = 50) -> list[AlloyData]:
+        """
+        Fetch a larger set of alloys that likely contain the requested property data.
+        This is optimized for analytical queries where we do sorting in Python.
+        """
+        return self.search_alloys(property_name_part, limit=limit)
+
     @staticmethod
-    def format_for_llm(alloys: List[AlloyData]) -> str:
+    def format_for_llm(alloys: list[AlloyData]) -> str:
         """
         Format alloy data for LLM consumption.
 
@@ -270,7 +275,6 @@ class AlloyRetriever:
             
             if alloy.composition:
                 lines.append("\nComposition (wt%):")
-                # Sort by value descending (major elements first)
                 sorted_comp = sorted(alloy.composition.items(), key=lambda x: x[1], reverse=True)
                 for element, value in sorted_comp:
                     lines.append(f"  {element}: {value:.2f}%")
@@ -300,7 +304,7 @@ class AlloyRetriever:
                 lines.append("\nMechanical Properties:")
                 
                 # Group by property type
-                prop_groups: Dict[str, List[PropertyMeasurement]] = {}
+                prop_groups: dict[str, list[PropertyMeasurement]] = {}
                 for prop in alloy.properties:
                     if prop.property_type not in prop_groups:
                         prop_groups[prop.property_type] = []
