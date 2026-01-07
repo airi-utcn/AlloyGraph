@@ -37,8 +37,8 @@ class AlloyPredictor:
         self.models = {}
         self.required_features = {}
         
-        # Load the 3 models
-        for name in ['ys', 'uts', 'el']:
+        # Load the 4 models
+        for name in ['ys', 'uts', 'el', 'em']:
             filename = os.path.join(model_dir, f"model_{name}.pkg")
             if os.path.exists(filename):
                 print(f"Loading {name.upper()} model...")

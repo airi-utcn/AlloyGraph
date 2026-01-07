@@ -24,7 +24,7 @@ class AlloyPredictionInput(BaseModel):
 class AlloyPredictorTool(BaseTool):
     name: str = "AlloyPredictorTool"
     description: str = (
-        "Predicts mechanical properties (Yield Strength, UTS, Elongation) of a superalloy "
+        "Predicts mechanical properties (Yield Strength, UTS, Elongation, Elastic Modulus) of a superalloy "
         "given its composition. Use this to VALIDATE if a design meets specifications."
     )
     args_schema: Type[BaseModel] = AlloyPredictionInput
@@ -56,29 +56,33 @@ class AlloyPredictorTool(BaseTool):
             ys_pred = float(row['ys'])
             uts_pred = float(row['uts'])
             el_pred = float(row['el'])
+            em_pred = float(row['em'])
 
-            
             # Estimate variance based on prediction magnitude and property type
             # YS typically has higher variance than elongation
             ys_variance = max(15.0, ys_pred * 0.05)  # ~5% of prediction
             uts_variance = max(20.0, uts_pred * 0.05)
             el_variance = max(1.0, el_pred * 0.08)  # Elongation more variable
+            em_variance = max(5.0, em_pred * 0.04)  # Elastic modulus ~4% uncertainty
             
             # Calculate uncertainty intervals (±2σ for 95% confidence)
             ys_uncertainty = ys_variance * 2.0
             uts_uncertainty = uts_variance * 2.0
             el_uncertainty = el_variance * 2.0
+            em_uncertainty = em_variance * 2.0
             
             # Calculate ML confidence from variance (lower variance = higher confidence)
             # Normalize variance to confidence score 0-1
             ys_confidence = max(0.4, 1.0 - (ys_variance / 100.0))
             uts_confidence = max(0.4, 1.0 - (uts_variance / 100.0))
             el_confidence = max(0.4, 1.0 - (el_variance / 15.0))
+            em_confidence = max(0.4, 1.0 - (em_variance / 20.0))
 
             result_dict = {
                 "Yield Strength": round(ys_pred, 1),
                 "Tensile Strength": round(uts_pred, 1),
                 "Elongation": round(el_pred, 1),
+                "Elastic Modulus": round(em_pred, 1),
                 "Density": float(dens),
                 "Gamma Prime": float(gp),
                 "source": "ML Prediction + Physics",
@@ -98,12 +102,18 @@ class AlloyPredictorTool(BaseTool):
                         "lower": round(max(0.0, el_pred - el_uncertainty), 1),
                         "upper": round(el_pred + el_uncertainty, 1),
                         "uncertainty": round(el_uncertainty, 1)
+                    },
+                    "Elastic Modulus": {
+                        "lower": round(em_pred - em_uncertainty, 1),
+                        "upper": round(em_pred + em_uncertainty, 1),
+                        "uncertainty": round(em_uncertainty, 1)
                     }
                 },
                 "model_confidence": {
                     "Yield Strength": round(ys_confidence, 3),
                     "Tensile Strength": round(uts_confidence, 3),
-                    "Elongation": round(el_confidence, 3)
+                    "Elongation": round(el_confidence, 3),
+                    "Elastic Modulus": round(em_confidence, 3)
                 }
             }
             

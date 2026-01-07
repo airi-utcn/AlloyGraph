@@ -153,6 +153,12 @@ if __name__ == "__main__":
             "name": "Elongation",
             "rf_params": {'n_estimators': 500, 'min_samples_split': 2, 'min_samples_leaf': 1, 'max_features': 'sqrt', 'max_depth': 10, 'random_state': 42},
             "xgb_params": {'subsample': 0.8, 'n_estimators': 300, 'max_depth': 7, 'learning_rate': 0.1, 'colsample_bytree': 0.9, 'random_state': 42}
+        },
+        "em":  {
+            "key": "elasticity",
+            "name": "Elastic Modulus",
+            "rf_params": {'n_estimators': 300, 'min_samples_split': 2, 'min_samples_leaf': 1, 'max_features': 'sqrt', 'max_depth': 15, 'random_state': 42},
+            "xgb_params": {'subsample': 0.8, 'n_estimators': 400, 'max_depth': 6, 'learning_rate': 0.05, 'colsample_bytree': 0.8, 'random_state': 42}
         }
     }
 
