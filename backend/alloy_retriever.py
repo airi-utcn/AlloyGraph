@@ -170,7 +170,10 @@ class AlloyRetriever:
                 tcp_risk=props.get('tcpRisk'),
                 sss_wt_pct=props.get('sssTotalWtPct'),
                 refractory_wt_pct=props.get('refractoryTotalWtPct'),
-                gp_formers_wt_pct=props.get('gpFormersWtPct')
+                gp_formers_wt_pct=props.get('gpFormersWtPct'),
+                composition={},
+                atomic_composition={},
+                properties=[]
             )
             
             # Extract atomic composition if available
