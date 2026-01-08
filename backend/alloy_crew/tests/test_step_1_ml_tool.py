@@ -13,10 +13,10 @@ def test_tool():
 
     # 2. Define Test Data (Rene 125 equivalent)
     test_comp = {
-        'Ni': 61.0, 'Cr': 10.0, 'Co': 10.0, 'Mo': 2.5, 'W': 7.0, 
+        'Ni': 61.0, 'Cr': 10.0, 'Co': 10.0, 'Mo': 2.5, 'W': 7.0,
         'Ta': 3.8, 'Al': 4.8, 'Ti': 2.5, 'Hf': 1.5
     }
-    family = "cast_ds"
+
     temp = 20
 
     # 3. Run Tool
