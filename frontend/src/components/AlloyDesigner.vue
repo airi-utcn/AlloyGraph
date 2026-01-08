@@ -95,11 +95,12 @@ const runValidation = async () => {
 
 // --- AUTO MODE STATE ---
 const targets = ref({
-  yield: 1200,      // Realistic superalloy yield strength target
-  tensile: 0,       // Optional - leave at 0
-  elongation: 0,    // Optional - leave at 0
-  density: 8.5,     // Realistic density target for Ni-based superalloys
-  gamma_prime: 0    // Optional - leave at 0
+  yield: 1200,         // Realistic superalloy yield strength target
+  tensile: 0,          // Optional - leave at 0
+  elongation: 0,       // Optional - leave at 0
+  elastic_modulus: 0,  // Optional - leave at 0
+  density: 8.5,        // Realistic density target for Ni-based superalloys
+  gamma_prime: 0       // Optional - leave at 0
 })
 const autoIterations = ref(3)
 const autoTemp = ref(20)  // Room temperature
@@ -121,12 +122,13 @@ const runDesign = async () => {
   try {
     // Build target_props object with all non-zero values
     const target_props = {
-      'Yield Strength': targets.value.yield
+      'Yield Strength': targets.value.yield,
+      'Tensile Strength': targets.value.tensile,
+      'Elongation': targets.value.elongation,
+      'Elastic Modulus': targets.value.elastic_modulus,
+      'Density': targets.value.density,
+      'Gamma Prime': targets.value.gamma_prime
     }
-    if (targets.value.tensile > 0) target_props['Tensile Strength'] = targets.value.tensile
-    if (targets.value.elongation > 0) target_props['Elongation'] = targets.value.elongation
-    if (targets.value.density < 99) target_props['Density'] = targets.value.density
-    if (targets.value.gamma_prime > 0) target_props['Gamma Prime'] = targets.value.gamma_prime
 
     const response = await axios.post(`${API_BASE_URL}/api/design`, {
       target_props: target_props, // Use the constructed target_props object
@@ -244,6 +246,7 @@ const parsedResults = computed(() => {
     { label: "Yield Strength", val: parseVal(lookUpProp(props, "Yield Strength")), unit: "MPa", icon: "🏋️" },
     { label: "Tensile Strength", val: parseVal(lookUpProp(props, "Tensile Strength") || lookUpProp(props, "Ultimate Tensile Strength")), unit: "MPa", icon: "⛓️" },
     { label: "Elongation", val: parseVal(lookUpProp(props, "Elongation")), unit: "%", icon: "📏" },
+    { label: "Elastic Modulus", val: parseVal(lookUpProp(props, "Elastic Modulus")), unit: "GPa", icon: "🔧" },
     { label: "Density", val: parseVal(lookUpProp(props, "Density")), unit: "g/cm³", icon: "🧱" },
     { label: "Gamma Prime", val: parseVal(lookUpProp(props, "Gamma Prime")), unit: "%", icon: "💎" },
   ].filter(p => p.val !== undefined && p.val !== null)
@@ -363,6 +366,12 @@ const parsedResults = computed(() => {
         <div class="field">
           <label>Min Elongation <span class="default-hint">(%)</span></label>
           <input v-model.number="targets.elongation" type="number" step="0.1" placeholder="0" />
+        </div>
+
+        <!-- Elastic Modulus -->
+        <div class="field">
+          <label>Min Elastic Modulus <span class="default-hint">(GPa)</span></label>
+          <input v-model.number="targets.elastic_modulus" type="number" step="1" placeholder="0" />
         </div>
 
         <!-- Density -->
