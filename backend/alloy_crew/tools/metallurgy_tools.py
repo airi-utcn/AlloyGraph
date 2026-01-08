@@ -17,6 +17,7 @@ def validate_property_bounds(properties: Dict[str, Any]) -> list[str]:
     el = properties.get('Elongation', 0)
     density = properties.get('Density', 0)
     gp = properties.get('Gamma Prime', 0)
+    em = properties.get('Elastic Modulus', 0)
     
     # Physical impossibilities
     if ys > uts and uts > 0:
@@ -34,6 +35,13 @@ def validate_property_bounds(properties: Dict[str, Any]) -> list[str]:
     if el > 100:
         errors.append(f"Elongation ({el}%) exceeds 100% - physically impossible")
     
+    # Elastic Modulus bounds for Ni-based superalloys (typically 180-220 GPa, hard limits 150-250)
+    if em > 0:  # Only check if provided
+        if em < 150 or em > 250:
+            errors.append(f"Elastic Modulus ({em} GPa) outside physically reasonable range for Ni-superalloys (150-250 GPa)")
+        elif em < 180 or em > 220:
+            errors.append(f"Elastic Modulus ({em} GPa) outside typical Ni-superalloy range (180-220 GPa) - verify composition")
+    
     # Density bounds for Ni-based superalloys (typically 7.5-9.5 g/cm³)
     if density > 0:  # Only check if provided
         if density < 7.0 or density > 10.0:
@@ -45,6 +53,29 @@ def validate_property_bounds(properties: Dict[str, Any]) -> list[str]:
             errors.append(f"Gamma Prime ({gp}%) exceeds typical maximum (~70%)")
     
     return errors
+
+
+def calculate_em_rule_of_mixtures(composition: Dict[str, float]) -> float:
+    """
+    Calculate Elastic Modulus using rule of mixtures.
+    Based on elemental Young's moduli at room temperature.
+    """
+    elemental_moduli = {
+        "Ni": 200.0,
+        "Cr": 279.0,
+        "Co": 209.0,
+        "Al": 70.0,
+        "Ti": 116.0,
+        "Mo": 329.0,
+        "W": 411.0,
+        "Fe": 211.0
+    }
+    
+    em = sum(composition.get(element, 0) / 100.0 * modulus 
+             for element, modulus in elemental_moduli.items())
+    
+    return em
+
 
 class MetallurgyVerifierInput(BaseModel):
     """Input for metallurgy verification."""
@@ -86,6 +117,7 @@ class MetallurgyVerifierTool(BaseTool):
             raw_ys = float(props.get('Yield Strength', 0))
             raw_ts = float(props.get('Tensile Strength', 0))
             raw_el = float(props.get('Elongation', 0))
+            raw_em = float(props.get('Elastic Modulus', 0))
             
             alloy_type = str(alloy_type).lower().strip().replace(" ", "_")
             if "corrosion" in alloy_type: 
@@ -136,6 +168,9 @@ class MetallurgyVerifierTool(BaseTool):
             else:
                 if el_physics < 5.0: el_physics = 5.0
 
+            # Elastic Modulus - Physics-based calculation
+            em_physics = calculate_em_rule_of_mixtures(composition)
+
             if 'metallurgy_metrics' not in input_data: input_data['metallurgy_metrics'] = {}
             input_data['metallurgy_metrics']['gamma_prime_vol'] = gp
 
@@ -165,9 +200,11 @@ class MetallurgyVerifierTool(BaseTool):
             if is_kg_anchored:
                 final_ys = raw_ys
                 final_el = raw_el
+                final_em = raw_em
             else:
                 final_ys = (raw_ys * 0.6) + (ys_physics * 0.4)
                 final_el = (raw_el * 0.6) + (el_physics * 0.4)
+                final_em = (raw_em * 0.6) + (em_physics * 0.4)
             
             warnings = []
             if gp < 5.0 and "solid_solution" not in processing:
@@ -199,6 +236,7 @@ class MetallurgyVerifierTool(BaseTool):
                 "Yield Strength": int(final_ys),
                 "Tensile Strength": int(final_ts),
                 "Elongation": round(final_el, 1),
+                "Elastic Modulus": round(final_em, 1),
                 "Density": round(density, 2),
                 "Gamma Prime": round(gp, 1)
             }

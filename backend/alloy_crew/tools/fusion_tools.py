@@ -108,7 +108,7 @@ class DataFusionTool(BaseTool):
             return 0.5
         
         agreements = []
-        for prop in ["Yield Strength", "Tensile Strength", "Elongation"]:
+        for prop in ["Yield Strength", "Tensile Strength", "Elongation", "Elastic Modulus"]:
             ml_val = ml_props.get(prop, 0)
             kg_val = kg_props.get(prop, 0)
             
@@ -147,7 +147,8 @@ class DataFusionTool(BaseTool):
         property_map = [
             ("yield_strength", "Yield Strength", "YieldStrength"), 
             ("uts", "Tensile Strength", "UTS"), 
-            ("elongation", "Elongation", "Elongation")
+            ("elongation", "Elongation", "Elongation"),
+            ("elasticity", "Elastic Modulus", "ElasticModulus")
         ]
 
         for list_key, target_key, alt_key in property_map:
@@ -200,6 +201,7 @@ class DataFusionTool(BaseTool):
             raw_ys = get_val(raw_pred, ["Yield Strength", "yield_strength", "ys"])
             raw_ts = get_val(raw_pred, ["Tensile Strength", "tensile_strength", "uts"])
             raw_el = get_val(raw_pred, ["Elongation", "elongation", "el"])
+            raw_em = get_val(raw_pred, ["Elastic Modulus", "elastic_modulus", "em", "elasticity"])
             
             ml_conf_dict = raw_pred.get("model_confidence", {})
             if ml_conf_dict and "Yield Strength" in ml_conf_dict:
@@ -220,6 +222,7 @@ class DataFusionTool(BaseTool):
             ys_base_uncertainty = get_uncert("Yield Strength")
             ts_base_uncertainty = get_uncert("Tensile Strength")
             el_base_uncertainty = get_uncert("Elongation")
+            em_base_uncertainty = get_uncert("Elastic Modulus")
 
             matched_candidate = None
             similarity_dist = 999.0
@@ -297,7 +300,8 @@ class DataFusionTool(BaseTool):
                 ml_props = {
                     "Yield Strength": raw_ys,
                     "Tensile Strength": raw_ts,
-                    "Elongation": raw_el
+                    "Elongation": raw_el,
+                    "Elastic Modulus": raw_em
                 }
                 fusion_agreement = self._calculate_fusion_agreement(ml_props, kg_props)
                 
@@ -333,6 +337,7 @@ class DataFusionTool(BaseTool):
             final_ys = (raw_ys * ml_weight) + (kg_props.get("Yield Strength", raw_ys) * kg_weight)
             final_ts = (raw_ts * ml_weight) + (kg_props.get("Tensile Strength", raw_ts) * kg_weight)
             final_el = (raw_el * ml_weight) + (kg_props.get("Elongation", raw_el) * kg_weight)
+            final_em = (raw_em * ml_weight) + (kg_props.get("Elastic Modulus", raw_em) * kg_weight)
             
             conf_score = confidence.get("score", 0.7)
             if conf_score > 0.80:
@@ -345,11 +350,13 @@ class DataFusionTool(BaseTool):
             ys_uncertainty = ys_base_uncertainty * uncertainty_multiplier if ys_base_uncertainty > 0 else final_ys * 0.10
             ts_uncertainty = ts_base_uncertainty * uncertainty_multiplier if ts_base_uncertainty > 0 else final_ts * 0.10
             el_uncertainty = el_base_uncertainty * uncertainty_multiplier if el_base_uncertainty > 0 else final_el * 0.15
+            em_uncertainty = em_base_uncertainty * uncertainty_multiplier if em_base_uncertainty > 0 else final_em * 0.05
             
             final_properties_flat = {
                 "Yield Strength": round(final_ys, 1),
                 "Tensile Strength": round(final_ts, 1),
-                "Elongation": round(final_el, 1)
+                "Elongation": round(final_el, 1),
+                "Elastic Modulus": round(final_em, 1)
             }
             
             final_intervals = {
@@ -367,6 +374,11 @@ class DataFusionTool(BaseTool):
                     "lower": round(max(0.0, final_el - el_uncertainty), 1),
                     "upper": round(final_el + el_uncertainty, 1),
                     "uncertainty": round(el_uncertainty, 1)
+                },
+                "Elastic Modulus": {
+                    "lower": round(final_em - em_uncertainty, 1),
+                    "upper": round(final_em + em_uncertainty, 1),
+                    "uncertainty": round(em_uncertainty, 1)
                 }
             }
             
@@ -406,7 +418,8 @@ class DataFusionTool(BaseTool):
                 "raw_ml_properties": {
                     "Yield Strength": raw_ys, 
                     "Tensile Strength": raw_ts, 
-                    "Elongation": raw_el
+                    "Elongation": raw_el,
+                    "Elastic Modulus": raw_em
                 }
             }
             return json.dumps(output)

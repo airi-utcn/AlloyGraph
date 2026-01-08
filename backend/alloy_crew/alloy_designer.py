@@ -24,6 +24,7 @@ class IterativeDesignCrew:
         self.min_yield = float(target_props.get("Yield Strength", 0))
         self.min_tensile = float(target_props.get("Tensile Strength", 0))
         self.min_elongation = float(target_props.get("Elongation", 0))
+        self.min_elastic_modulus = float(target_props.get("Elastic Modulus", 0))
         self.max_density = float(target_props.get("Density", 99.0))
         self.min_gamma_prime = float(target_props.get("Gamma Prime", 0))
 
@@ -157,6 +158,7 @@ class IterativeDesignCrew:
             f"- Yield Strength > {self.min_yield} MPa\n"
             f"- Tensile Strength > {self.min_tensile} MPa\n"
             f"- Elongation > {self.min_elongation} %\n"
+            f"- Elastic Modulus > {self.min_elastic_modulus} GPa\n"
             f"- Density < {self.max_density} g/cm3\n"
             f"- Gamma Prime > {self.min_gamma_prime} %"
         )
@@ -234,7 +236,7 @@ class IterativeDesignCrew:
             ml_truth = validator_output.ml_prediction  # Ground truth from ML tool
             
 
-            for prop_name in ["Yield Strength", "Tensile Strength", "Elongation", "Density"]:
+            for prop_name in ["Yield Strength", "Tensile Strength", "Elongation", "Elastic Modulus", "Density"]:
                 if prop_name in ml_truth and prop_name in physics_output.properties:
                     ml_value = ml_truth[prop_name]
                     phys_value = physics_output.properties[prop_name]
@@ -258,6 +260,7 @@ class IterativeDesignCrew:
                     f"- Yield Strength: {physics_output.properties.get('Yield Strength', 'N/A')} MPa\n"
                     f"- Tensile Strength: {physics_output.properties.get('Tensile Strength', 'N/A')} MPa\n"
                     f"- Elongation: {physics_output.properties.get('Elongation', 'N/A')}%\n"
+                    f"- Elastic Modulus: {physics_output.properties.get('Elastic Modulus', 'N/A')} GPa\n"
                     f"- Gamma Prime: {physics_output.properties.get('Gamma Prime', 'N/A')} vol%\n\n"
                     f"**Physics Audit**:\n"
                     f"- TCP Risk: {physics_output.tcp_risk}\n"
@@ -317,6 +320,8 @@ class IterativeDesignCrew:
         if self.min_tensile > 0 and float(props.get("Tensile Strength", 0) or 0) < self.min_tensile:
             return False
         if self.min_elongation > 0 and float(props.get("Elongation", 0) or 0) < self.min_elongation:
+            return False
+        if self.min_elastic_modulus > 0 and float(props.get("Elastic Modulus", 0) or 0) < self.min_elastic_modulus:
             return False
         if self.max_density < 99.0 and float(props.get("Density", 1e9) or 1e9) > self.max_density:
             return False
@@ -389,7 +394,7 @@ class IterativeDesignCrew:
                         # ANTI-HALLUCINATION: Use ML ground truth, not LLM modifications
                         if val_output and hasattr(val_output, 'ml_prediction'):
                             ml_truth = val_output.ml_prediction
-                            for prop_name in ["Yield Strength", "Tensile Strength", "Elongation", "Density"]:
+                            for prop_name in ["Yield Strength", "Tensile Strength", "Elongation", "Elastic Modulus", "Density"]:
                                 if prop_name in ml_truth:
                                     result["properties"][prop_name] = ml_truth[prop_name]
                         
@@ -450,6 +455,8 @@ class IterativeDesignCrew:
                 failures.append(f"Tensile Strength too low ({props.get('Tensile Strength')} < {self.min_tensile})")
             if self.min_elongation > 0 and props.get("Elongation", 0) < self.min_elongation:
                 failures.append(f"Elongation too low ({props.get('Elongation')} < {self.min_elongation})")
+            if self.min_elastic_modulus > 0 and props.get("Elastic Modulus", 0) < self.min_elastic_modulus:
+                failures.append(f"Elastic Modulus too low ({props.get('Elastic Modulus')} < {self.min_elastic_modulus})")
             if self.max_density < 99.0 and props.get("Density", 1e9) > self.max_density:
                 failures.append(f"Density too high ({props.get('Density')} > {self.max_density})")
             if self.min_gamma_prime > 0 and props.get("Gamma Prime", 0) < self.min_gamma_prime:
@@ -491,6 +498,7 @@ class IterativeDesignCrew:
                     f"- Yield Strength > {self.min_yield} MPa\n"
                     f"- Tensile Strength > {self.min_tensile} MPa\n"
                     f"- Elongation > {self.min_elongation} %\n"
+                    f"- Elastic Modulus > {self.min_elastic_modulus} GPa\n"
                     f"- Density < {self.max_density} g/cm3\n"
                     f"- Gamma Prime > {self.min_gamma_prime} %"
                 )

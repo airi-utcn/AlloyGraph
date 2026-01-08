@@ -3,7 +3,7 @@ import sys
 from .alloy_designer import IterativeDesignCrew
 
 
-def validate_design_inputs(ys, uts, el, density, iterations):
+def validate_design_inputs(ys, uts, el, em, density, gp, iterations):
     """
     Validate input parameters for physical feasibility.
     
@@ -11,7 +11,9 @@ def validate_design_inputs(ys, uts, el, density, iterations):
         ys: Yield strength (MPa)
         uts: Ultimate tensile strength (MPa)
         el: Elongation (%)
+        em: Elastic modulus (GPa)
         density: Density (g/cm³)
+        gp: Gamma Prime volume fraction (%)
         iterations: Number of design iterations
     
     Returns:
@@ -45,20 +47,32 @@ def validate_design_inputs(ys, uts, el, density, iterations):
         elif el > 100:
             errors.append(f"❌ Elongation ({el}%) cannot exceed 100%)")
     
-    # 5. Density range check (Ni-based superalloys: 7-10 g/cm³)
+    # 5. Elastic Modulus range check (Ni-based superalloys: 150-250 GPa)
+    if em > 0:
+        if em < 150:
+            errors.append(f"❌ Elastic Modulus ({em} GPa) is too low for superalloys (min: 150 GPa)")
+        elif em > 250:
+            errors.append(f"❌ Elastic Modulus ({em} GPa) is too high for superalloys (max: 250 GPa)")
+    
+    # 6. Density range check (Ni-based superalloys: 7-10 g/cm³)
     if density > 0:
         if density < 5.0:
             errors.append(f"❌ Density ({density} g/cm³) is too low for superalloys (min: 5.0 g/cm³)")
         elif density > 12.0:
             errors.append(f"❌ Density ({density} g/cm³) is too high for superalloys (max: 12.0 g/cm³)")
     
-    # 6. Iterations check
+    # 7. Gamma Prime range check (0-75% is typical maximum)
+    if gp > 0:
+        if gp > 75:
+            errors.append(f"❌ Gamma Prime ({gp}%) exceeds typical maximum (75%)")
+    
+    # 8. Iterations check
     if iterations < 1:
         errors.append(f"❌ Iterations ({iterations}) must be at least 1")
     elif iterations > 20:
         errors.append(f"⚠️  Warning: {iterations} iterations is quite high (may take very long)")
     
-    # 7. Check for conflicting requirements (high strength usually means low ductility)
+    # 9. Check for conflicting requirements (high strength usually means low ductility)
     if ys > 1500 and el > 30:
         errors.append(f"⚠️  Warning: High YS ({ys} MPa) + High Elongation ({el}%) is difficult to achieve")
     
@@ -67,8 +81,12 @@ def validate_design_inputs(ys, uts, el, density, iterations):
 
 def main():
     parser = argparse.ArgumentParser(description="AlloyMind Designer: Invent new superalloys.")
-    parser.add_argument("--yield_strength", type=float, default=1000.0, help="Minimum Yield Strength (MPa)")
-    parser.add_argument("--density", type=float, default=9.0, help="Maximum Density (g/cm³)")
+    parser.add_argument("--yield_strength", type=float, default=0.0, help="Minimum Yield Strength (MPa). 0=no constraint")
+    parser.add_argument("--tensile_strength", type=float, default=0.0, help="Minimum Tensile Strength (MPa). 0=no constraint")
+    parser.add_argument("--elongation", type=float, default=0.0, help="Minimum Elongation (%%). 0=no constraint")
+    parser.add_argument("--elastic_modulus", type=float, default=0.0, help="Minimum Elastic Modulus (GPa). 0=no constraint")
+    parser.add_argument("--density", type=float, default=99.0, help="Maximum Density (g/cm³). 99=no constraint")
+    parser.add_argument("--gamma_prime", type=float, default=0.0, help="Minimum Gamma Prime (vol%%). 0=no constraint")
     parser.add_argument("--temperature", type=float, default=900.0, help="Service temperature (°C). Room=20, High=900-1200")
     parser.add_argument("--processing", type=str, default="cast", choices=["cast", "wrought"],
                         help="Processing route: cast (default) or wrought")
@@ -81,9 +99,11 @@ def main():
     # Validate inputs
     validation_errors = validate_design_inputs(
         args.yield_strength,
-        0.0,  # tensile_strength removed
-        0.0,  # elongation removed
+        args.tensile_strength,
+        args.elongation,
+        args.elastic_modulus,
         args.density,
+        args.gamma_prime,
         args.iterations
     )
 
@@ -108,7 +128,17 @@ def main():
     print("==================================================")
     print(" 🧬 ALLOYMIND: AUTOMATED ALLOY DISCOVERY ENGINE 🧬")
     print("==================================================")
-    print(f"🎯 TARGETS: Yield≥{args.yield_strength} MPa | Density≤{args.density} g/cm³")
+    
+    # Build target display string dynamically
+    targets = []
+    if args.yield_strength > 0: targets.append(f"YS≥{args.yield_strength} MPa")
+    if args.tensile_strength > 0: targets.append(f"UTS≥{args.tensile_strength} MPa")
+    if args.elongation > 0: targets.append(f"El≥{args.elongation}%")
+    if args.elastic_modulus > 0: targets.append(f"EM≥{args.elastic_modulus} GPa")
+    if args.density < 99.0: targets.append(f"ρ≤{args.density} g/cm³")
+    if args.gamma_prime > 0: targets.append(f"γ'≥{args.gamma_prime}%")
+    
+    print(f"🎯 TARGETS: {' | '.join(targets) if targets else 'No constraints (exploratory mode)'}")
     print(f"🌡️  TEMPERATURE: {args.temperature}°C | PROCESSING: {args.processing}")
     print("--------------------------------------------------")
     
@@ -121,10 +151,26 @@ def main():
             start_comp = json.loads(args.composition)
             print(f"🧪 Starting with Custom Composition: {start_comp}")
 
-        engine = IterativeDesignCrew({
-            "Yield Strength": args.yield_strength,
-            "Density": args.density
-        })
+        # Build target_props dictionary with only non-zero values
+        target_props = {}
+        if args.yield_strength > 0:
+            target_props["Yield Strength"] = args.yield_strength
+        if args.tensile_strength > 0:
+            target_props["Tensile Strength"] = args.tensile_strength
+        if args.elongation > 0:
+            target_props["Elongation"] = args.elongation
+        if args.elastic_modulus > 0:
+            target_props["Elastic Modulus"] = args.elastic_modulus
+        if args.density < 99.0:
+            target_props["Density"] = args.density
+        if args.gamma_prime > 0:
+            target_props["Gamma Prime"] = args.gamma_prime
+        
+        if not target_props:
+            print("⚠️  Warning: No targets specified. Running in exploratory mode.")
+            target_props = {"Yield Strength": 1000.0}  # Default fallback
+        
+        engine = IterativeDesignCrew(target_props)
         
         # Run Loop
         result = engine.loop(
@@ -175,6 +221,7 @@ def main():
             print(f"  Yield Strength: {props.get('Yield Strength', 'N/A')} MPa")
             print(f"  Tensile Strength: {props.get('Tensile Strength', 'N/A')} MPa")
             print(f"  Elongation: {props.get('Elongation', 'N/A')} %")
+            print(f"  Elastic Modulus: {props.get('Elastic Modulus', 'N/A')} GPa")
             print(f"  Density: {props.get('Density', 'N/A')} g/cm³")
             print(f"  Gamma Prime: {props.get('Gamma Prime', 'N/A')} vol%")
             
