@@ -31,6 +31,7 @@ if __name__ == "__main__":
     assert "Yield Strength" in props, "Missing Yield Strength"
     assert "Tensile Strength" in props, "Missing Tensile Strength"
     assert "Elongation" in props, "Missing Elongation"
+    assert "Elastic Modulus" in props, "Missing Elastic Modulus"
     
     # Display confidence summary
     confidence = result.get("confidence", {})
