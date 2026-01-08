@@ -55,6 +55,8 @@ def design():
             target_props['Tensile Strength'] = data.get('tensile_strength')
         if data.get('elongation', 0) > 0:
             target_props['Elongation'] = data.get('elongation')
+        if data.get('elastic_modulus', 0) > 0:
+            target_props['Elastic Modulus'] = data.get('elastic_modulus')
         if data.get('density', 99) < 99:
             target_props['Density'] = data.get('density')
         if data.get('gamma_prime', 0) > 0:
