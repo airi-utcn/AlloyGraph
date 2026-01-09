@@ -1,18 +1,50 @@
-pandas<=2.3.3
-notebook<=7.4.7
-rdflib<=7.2.1
-openpyxl<=3.1.5
-regex<=2025.10.23
-owlready2<=0.48
-weaviate-client<=4.17.0
-chainlit<=2.8.3
-ollama==0.6.0
-together
-openai
-crewai
-crewai-tools
-numpy
-scikit-learn
-xgboost
-SPARQLWrapper
-pytest
+# ============================================
+# Core Framework
+# ============================================
+Flask>=3.1.2
+flask-cors>=6.0.2
+gunicorn>=21.2.0
+
+# ============================================
+# AI/ML - LLM & Orchestration
+# ============================================
+crewai>=1.7.2
+crewai-tools>=1.7.2
+groq>=1.0.0
+litellm>=1.80.11
+ollama>=0.6.0
+openai>=2.14.0
+together>=1.5.33
+
+# ============================================
+# AI/ML - Data Science
+# ============================================
+numpy>=2.4.0
+pandas>=2.3.3
+scikit-learn>=1.8.0
+xgboost>=3.1.2
+
+# ============================================
+# Vector Database
+# ============================================
+weaviate-client>=4.17.0
+
+# ============================================
+# Knowledge Graph & Ontology
+# ============================================
+owlready2>=0.48
+rdflib>=7.2.1
+SPARQLWrapper>=2.0.0
+
+# ============================================
+# Utilities
+# ============================================
+chainlit>=2.8.3
+openpyxl>=3.1.5
+regex>=2024.9.11
+
+# ============================================
+# Development & Testing
+# ============================================
+notebook>=7.4.7
+pytest>=9.0.2

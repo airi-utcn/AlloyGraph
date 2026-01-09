@@ -1,0 +1,46 @@
+services:
+  # Backend Flask API
+  alloymind-backend:
+    build: ./backend
+    container_name: alloymind-backend
+    ports:
+      - "5001:5001"
+    env_file:
+      - .env # Load API keys from .env file (create from .env.example)
+    environment:
+      # Weaviate connection (connects to existing Weaviate container)
+      - WEAVIATE_HOST=host.docker.internal
+      - WEAVIATE_PORT=8081
+      - WEAVIATE_GRPC_PORT=50052
+      # Flask settings
+      - FLASK_ENV=production
+      - FLASK_DEBUG=0
+      - PORT=5001
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:5001/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend Vue.js app with nginx
+  alloymind-frontend:
+    build: ./frontend
+    container_name: alloymind-frontend
+    ports:
+      - "3000:80" # Frontend accessible on port 3000
+    depends_on:
+      - alloymind-backend
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  default:
+    name: alloymind-network
