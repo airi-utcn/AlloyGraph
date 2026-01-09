@@ -22,8 +22,20 @@
   <rdfs:range rdf:resource="#Variant"/>
 </owl:ObjectProperty>
 
+<owl:ObjectProperty rdf:about="#hasProcessingMethod">
+  <rdfs:domain rdf:resource="#NickelBasedSuperalloy"/>
+  <rdfs:domain rdf:resource="#Variant"/>
+  <rdfs:range rdf:resource="#ProcessingMethod"/>
+</owl:ObjectProperty>
+
+<owl:ObjectProperty rdf:about="#hasForm">
+  <rdfs:domain rdf:resource="#Variant"/>
+  <rdfs:range rdf:resource="#Form"/>
+</owl:ObjectProperty>
+
 <owl:ObjectProperty rdf:about="#hasPropertySet">
   <rdfs:domain rdf:resource="#Variant"/>
+  <rdfs:domain rdf:resource="#NickelBasedSuperalloy"/>
   <rdfs:range rdf:resource="#PropertySet"/>
 </owl:ObjectProperty>
 
@@ -94,6 +106,11 @@
 
 <owl:DatatypeProperty rdf:about="#variantName">
   <rdfs:domain rdf:resource="#Variant"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#form">
+  <rdfs:domain rdf:resource="#Form"/>
   <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
 </owl:DatatypeProperty>
 
@@ -177,6 +194,76 @@
   <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#decimal"/>
 </owl:DatatypeProperty>
 
+<owl:DatatypeProperty rdf:about="#hasMdAverage">
+  <rdfs:domain rdf:resource="#Variant"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#decimal"/>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#hasGammaPrimeEstimate">
+  <rdfs:domain rdf:resource="#Variant"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#decimal"/>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#hasDensityCalculated">
+  <rdfs:domain rdf:resource="#Variant"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#decimal"/>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#hasTcpRisk">
+  <rdfs:domain rdf:resource="#Variant"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#hasSSSTotalWtPct">
+  <rdfs:domain rdf:resource="#Variant"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#decimal"/>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#hasRefractoryTotalWtPct">
+  <rdfs:domain rdf:resource="#Variant"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#decimal"/>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#hasGPFormersWtPct">
+  <rdfs:domain rdf:resource="#Variant"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#decimal"/>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#hasAlTiRatio">
+  <rdfs:domain rdf:resource="#Variant"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#decimal"/>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#hasCrCoRatio">
+  <rdfs:domain rdf:resource="#Variant"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#decimal"/>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#hasCrNiRatio">
+  <rdfs:domain rdf:resource="#Variant"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#decimal"/>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#hasMoWRatio">
+  <rdfs:domain rdf:resource="#Variant"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#decimal"/>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#hasAlTiAtRatio">
+  <rdfs:domain rdf:resource="#Variant"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#decimal"/>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#hasGPFormersAtPct">
+  <rdfs:domain rdf:resource="#Variant"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#decimal"/>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#hasAtomicCompositionJson">
+  <rdfs:domain rdf:resource="#Variant"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+</owl:DatatypeProperty>
+
 <owl:Class rdf:about="#NickelBasedSuperalloy">
   <rdfs:subClassOf rdf:resource="http://www.w3.org/2002/07/owl#Thing"/>
 </owl:Class>
@@ -222,6 +309,14 @@
   <rdfs:subClassOf rdf:resource="http://www.w3.org/2002/07/owl#Thing"/>
 </owl:Class>
 
+<owl:Class rdf:about="#ProcessingMethod">
+  <rdfs:subClassOf rdf:resource="http://www.w3.org/2002/07/owl#Thing"/>
+</owl:Class>
+
+<owl:Class rdf:about="#Form">
+  <rdfs:subClassOf rdf:resource="http://www.w3.org/2002/07/owl#Thing"/>
+</owl:Class>
+
 <owl:Class rdf:about="#MechanicalProperty">
   <rdfs:subClassOf rdf:resource="http://www.w3.org/2002/07/owl#Thing"/>
 </owl:Class>
@@ -243,6 +338,14 @@
 </owl:Class>
 
 <owl:Class rdf:about="#ElasticModulus">
+  <rdfs:subClassOf rdf:resource="#MechanicalProperty"/>
+</owl:Class>
+
+<owl:Class rdf:about="#Elasticity">
+  <rdfs:subClassOf rdf:resource="#MechanicalProperty"/>
+</owl:Class>
+
+<owl:Class rdf:about="#UTS">
   <rdfs:subClassOf rdf:resource="#MechanicalProperty"/>
 </owl:Class>
 

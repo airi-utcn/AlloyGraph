@@ -51,10 +51,20 @@ def extract_all_alloys_to_jsonl():
 
             alloy_df = sheets[alloy_sheet]
 
-            for idx, alloy_row in alloy_df.iterrows():
+            for i, (idx, alloy_row) in enumerate(alloy_df.iterrows()):
+                form_val = None
+                ys_sheet_name = f"{form} Yield Strength"
+                if ys_sheet_name in sheets:
+                    ys_df = sheets[ys_sheet_name]
+                    if i < len(ys_df):
+                        val = ys_df.iloc[i].get("Form")
+                        if pd.notna(val) and val != "-":
+                            form_val = val
+
                 result = {
                     "alloy": alloy_row.get("Alloy"),
-                    "processing": form.lower()
+                    "processing": form.lower(),
+                    "form": form_val
                 }
 
                 # ---- Composition ----

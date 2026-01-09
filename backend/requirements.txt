@@ -11,9 +11,7 @@ gunicorn>=21.2.0
 crewai>=1.7.2
 crewai-tools>=1.7.2
 groq>=1.0.0
-litellm>=1.80.11
 ollama>=0.6.0
-openai>=2.14.0
 together>=1.5.33
 
 # ============================================
