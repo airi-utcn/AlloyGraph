@@ -14,7 +14,7 @@ WEAVIATE_COMPOSE="../docker/docker-compose-weaviate.yml"
 WEAVIATE_DATA_DIR="../docker/weaviate_data"
 
 echo "==========================================="
-echo "   Starting AlloyMind Data Pipeline"
+echo "   Starting AlloyGraph Data Pipeline"
 echo "==========================================="
 
 # 1. Reset Weaviate

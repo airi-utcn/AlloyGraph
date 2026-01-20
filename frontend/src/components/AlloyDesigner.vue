@@ -32,7 +32,6 @@ let elapsedTimer = null
 // --- DESIGN HISTORY STATE ---
 const designHistory = ref([])
 const showHistory = ref(false)
-const showInfo = ref(false)
 const maxHistoryItems = 20
 
 // --- ERROR HANDLING HELPERS ---
@@ -227,9 +226,10 @@ watch(mode, () => {
   clearError()
 })
 
-// Load history on mount
+// Load history and custom presets on mount
 onMounted(() => {
   loadHistory()
+  loadCustomPresets()
 })
 
 // --- MANUAL MODE STATE ---
@@ -259,22 +259,106 @@ watch(() => props.initialAlloy, (newVal) => {
   initFromProp(newVal)
 })
 
-const PRESETS = {
-  "Waspaloy": { composition: {"Ni": 58.0, "Cr": 19.5, "Co": 13.5, "Mo": 4.3, "Al": 1.3, "Ti": 3.0, "C": 0.08, "B": 0.006, "Zr": 0.06}, processing: "wrought" },
-  "Inconel 718": { composition: { "Ni": 52.5, "Cr": 19.0, "Fe": 19.0, "Nb": 5.1, "Mo": 3.0, "Ti": 0.9, "Al": 0.5 }, processing: "wrought" },
-  "Udimet 720": { composition: { "Ni": 55.0, "Cr": 16.0, "Co": 14.7, "Ti": 5.0, "Al": 2.5, "Mo": 3.0, "W": 1.25 }, processing: "wrought" },
-  "IN738LC": { composition: {"Ni": 61.5, "Cr": 16.0, "Co": 8.5, "Mo": 1.75, "W": 2.6, "Al": 3.4, "Ti": 3.4, "Ta": 1.75, "Nb": 0.9, "C": 0.11, "B": 0.01, "Zr": 0.05}, processing: "cast" },
-  "Udimet 500": { composition: { "Ni": 54.0, "Cr": 18.0, "Co": 18.5, "Mo": 4.0, "Al": 2.9, "Ti": 2.9, "C": 0.08, "B": 0.006, "Zr": 0.05 }, processing: "wrought" },
-  "Haynes 282": { composition: { "Ni": 57.0, "Cr": 19.5, "Co": 10.0, "Mo": 8.5, "Ti": 2.1, "Al": 1.5, "Fe": 1.0, "Mn": 0.15, "Si": 0.1, "C": 0.06, "B": 0.005 }, processing: "wrought" },
-  "CMSX-4": { composition: {"Ni": 61.7, "Cr": 6.5, "Co": 9.0, "Mo": 0.6, "W": 6.0, "Al": 5.6, "Ti": 1.0, "Ta": 6.5, "Re": 3.0, "Hf": 0.1}, processing: "cast" },
-  "René 65": { composition: {"Ni": 51.6, "Cr": 16.0, "Co": 13.0, "Mo": 4.0, "W": 4.0, "Al": 2.1, "Ti": 3.7, "Nb": 0.7, "Fe": 1.0, "B": 0.016, "Zr": 0.05, "C": 0.01}, processing: "wrought" }
+const BUILTIN_PRESETS = {
+  "Waspaloy": { composition: {"Ni": 58.0, "Cr": 19.5, "Co": 13.5, "Mo": 4.3, "Al": 1.3, "Ti": 3.0, "C": 0.08, "B": 0.006, "Zr": 0.06}, processing: "wrought", builtin: true },
+  "Inconel 718": { composition: { "Ni": 52.5, "Cr": 19.0, "Fe": 19.0, "Nb": 5.1, "Mo": 3.0, "Ti": 0.9, "Al": 0.5 }, processing: "wrought", builtin: true },
+  "Udimet 720": { composition: { "Ni": 55.0, "Cr": 16.0, "Co": 14.7, "Ti": 5.0, "Al": 2.5, "Mo": 3.0, "W": 1.25 }, processing: "wrought", builtin: true },
+  "IN738LC": { composition: {"Ni": 61.5, "Cr": 16.0, "Co": 8.5, "Mo": 1.75, "W": 2.6, "Al": 3.4, "Ti": 3.4, "Ta": 1.75, "Nb": 0.9, "C": 0.11, "B": 0.01, "Zr": 0.05}, processing: "cast", builtin: true },
+  "Udimet 500": { composition: { "Ni": 54.0, "Cr": 18.0, "Co": 18.5, "Mo": 4.0, "Al": 2.9, "Ti": 2.9, "C": 0.08, "B": 0.006, "Zr": 0.05 }, processing: "wrought", builtin: true },
+  "Haynes 282": { composition: { "Ni": 57.0, "Cr": 19.5, "Co": 10.0, "Mo": 8.5, "Ti": 2.1, "Al": 1.5, "Fe": 1.0, "Mn": 0.15, "Si": 0.1, "C": 0.06, "B": 0.005 }, processing: "wrought", builtin: true },
+  "CMSX-4": { composition: {"Ni": 61.7, "Cr": 6.5, "Co": 9.0, "Mo": 0.6, "W": 6.0, "Al": 5.6, "Ti": 1.0, "Ta": 6.5, "Re": 3.0, "Hf": 0.1}, processing: "cast", builtin: true },
+  "René 65": { composition: {"Ni": 51.6, "Cr": 16.0, "Co": 13.0, "Mo": 4.0, "W": 4.0, "Al": 2.1, "Ti": 3.7, "Nb": 0.7, "Fe": 1.0, "B": 0.016, "Zr": 0.05, "C": 0.01}, processing: "wrought", builtin: true }
 }
+
+// Custom presets stored in localStorage
+const customPresets = ref({})
+
+// Load custom presets from localStorage
+const loadCustomPresets = () => {
+  try {
+    const stored = localStorage.getItem('alloyCustomPresets')
+    if (stored) {
+      customPresets.value = JSON.parse(stored)
+    }
+  } catch (e) {
+    console.error('Failed to load custom presets:', e)
+  }
+}
+
+// Save custom presets to localStorage
+const saveCustomPresets = () => {
+  try {
+    localStorage.setItem('alloyCustomPresets', JSON.stringify(customPresets.value))
+  } catch (e) {
+    console.error('Failed to save custom presets:', e)
+  }
+}
+
+// All presets (builtin + custom)
+const allPresets = computed(() => {
+  return { ...BUILTIN_PRESETS, ...customPresets.value }
+})
 
 // Track selected preset
 const selectedPreset = ref(null)
 
+// Save current composition as a new preset
+const showSavePreset = ref(false)
+const newPresetName = ref('')
+
+const openSavePreset = () => {
+  newPresetName.value = ''
+  showSavePreset.value = true
+}
+
+const saveAsPreset = () => {
+  const name = newPresetName.value.trim()
+  if (!name) return
+
+  if (BUILTIN_PRESETS[name]) {
+    alert('Cannot overwrite built-in presets. Choose a different name.')
+    return
+  }
+
+  customPresets.value[name] = {
+    composition: { ...manualComp.value },
+    processing: manualProcessing.value,
+    builtin: false
+  }
+  saveCustomPresets()
+  selectedPreset.value = name
+  showSavePreset.value = false
+  newPresetName.value = ''
+}
+
+const deletePreset = (name) => {
+  if (BUILTIN_PRESETS[name]) {
+    alert('Cannot delete built-in presets.')
+    return
+  }
+
+  if (confirm(`Delete preset "${name}"?`)) {
+    delete customPresets.value[name]
+    saveCustomPresets()
+    if (selectedPreset.value === name) {
+      selectedPreset.value = null
+    }
+  }
+}
+
+const editPreset = (name) => {
+  if (BUILTIN_PRESETS[name]) {
+    alert('Cannot edit built-in presets. Load it and save as a new preset instead.')
+    return
+  }
+
+  // Load the preset for editing
+  loadPreset(name)
+}
+
 const loadPreset = (name) => {
-  const preset = PRESETS[name]
+  const preset = allPresets.value[name]
+  if (!preset) return
   manualComp.value = { ...preset.composition }
   manualProcessing.value = preset.processing
   selectedPreset.value = name
@@ -459,11 +543,11 @@ const retryValidation = async () => {
 
 // --- AUTO MODE STATE ---
 const targets = ref({
-  yield: 1200,         // Realistic superalloy yield strength target
+  yield: 0,         // Realistic superalloy yield strength target
   tensile: 0,          // Optional - leave at 0
   elongation: 0,       // Optional - leave at 0
   elastic_modulus: 0,  // Optional - leave at 0
-  density: 8.5,        // Realistic density target for Ni-based superalloys
+  density: 0,        // Realistic density target for Ni-based superalloys
   gamma_prime: 0       // Optional - leave at 0
 })
 const autoIterations = ref(3)
@@ -1015,68 +1099,7 @@ const parsedResults = computed(() => {
         <span class="mode-label">History</span>
         <span v-if="designHistory.length > 0" class="history-badge">{{ designHistory.length }}</span>
       </button>
-      <button
-        class="history-toggle-btn"
-        @click="showInfo = true"
-        title="Help & Information"
-        style="margin-left: 0.5rem;"
-      >
-        <span class="mode-icon">ℹ️</span>
-      </button>
     </div>
-
-    <!-- INFO MODAL -->
-    <transition name="fade">
-      <div v-if="showInfo" class="modal-overlay" @click.self="showInfo = false">
-        <div class="modal-content glass-card">
-          <div class="modal-header">
-            <h3>AlloyMind Guide</h3>
-            <button class="close-btn" @click="showInfo = false">×</button>
-          </div>
-          <div class="modal-body">
-            <h4>🧬 Inverse Design Mode (Auto)</h4>
-            <p><strong>Purpose:</strong> AI-driven composition synthesis to meet target mechanical properties using multi-agent optimization.</p>
-            <ul>
-              <li><strong>Target Properties:</strong> Specify minimum values for YS (Yield Strength), UTS (Ultimate Tensile Strength), Elongation, Elastic Modulus, or maximum Density. Set to <strong>0</strong> to exclude from optimization.</li>
-              <li><strong>Processing Route:</strong> Select <em>wrought</em> or <em>cast</em> based on your intended manufacturing method.</li>
-              <li><strong>Iterations:</strong> Higher values (5-10) explore more compositional space but increase runtime (~2-5 min per iteration).</li>
-            </ul>
-
-            <h4>🧪 Property Prediction Mode (Manual)</h4>
-            <p><strong>Purpose:</strong> ML/KG data fusion to predict properties for known compositions, validated against physics constraints.</p>
-            <ul>
-              <li><strong>Input:</strong> Enter weight percentages (should sum to ~100%).</li>
-              <li><strong>ML Models:</strong> Trained on Ni-based superalloy database with engineered metallurgical features (γ' fraction, Md parameter, lattice mismatch, VEC).</li>
-              <li><strong>Knowledge Graph Fusion:</strong> If composition closely matches known alloys in the database, predictions are weighted toward experimental data.</li>
-            </ul>
-
-            <h4>📊 Physics Validation & Confidence</h4>
-            <ul>
-              <li><span class="status-badge pass" style="font-size: 0.8em; padding: 2px 6px;">PASS</span> No critical violations. Md (phase stability) < 0.98, lattice mismatch < 0.8%, properties within known ranges.</li>
-              <li><span class="status-badge reject" style="font-size: 0.8em; padding: 2px 6px;">REJECT</span> Physics constraints violated (e.g., TCP (topologically close-packed) phase risk, excessive lattice mismatch, γ' incoherence).</li>
-              <li><strong>Confidence Level:</strong> HIGH (database match + model agreement), MEDIUM (model interpolation), LOW (extrapolation beyond training data).</li>
-              <li><strong>Prediction Intervals:</strong> Uncertainty ranges shown for each property based on model confidence and nearest-neighbor distances.</li>
-            </ul>
-
-            <h4>🔬 Research & Chat Mode</h4>
-            <p><strong>Purpose:</strong> Query the knowledge graph to find similar alloys, explore literature data, or ask metallurgical questions.</p>
-            <ul>
-              <li><strong>Search by Composition:</strong> "Find alloys similar to Inconel 718" or "Show me high-γ' superalloys"</li>
-              <li><strong>Property Queries:</strong> "What alloys have YS > 1000 MPa?" or "Compare Waspaloy and Inconel 718"</li>
-              <li><strong>Metallurgical Questions:</strong> Ask about phase stability, strengthening mechanisms, or processing effects.</li>
-            </ul>
-
-            <h4>⚙️ Known Limitations</h4>
-            <ul>
-              <li>Predictions assume room temperature (20°C) unless otherwise specified.</li>
-              <li>γ' (gamma prime) volume fraction uses a composition-based solubility model; accuracy may vary for non-standard compositions.</li>
-              <li>TCP risk assessment is based on composition; actual phase formation depends on heat treatment and kinetics.</li>
-              <li>For optimal accuracy, experimental validation is recommended for novel alloy designs.</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </transition>
 
     <!-- DESIGN HISTORY PANEL -->
     <transition name="slide-down">
@@ -1134,12 +1157,22 @@ const parsedResults = computed(() => {
       <div class="presets-section">
         <label class="section-label">Quick Start:</label>
         <div class="preset-buttons">
-          <button v-for="(comp, name) in PRESETS" :key="name"
-                  @click="loadPreset(name)"
-                  :class="['preset-btn', { 'preset-selected': selectedPreset === name }]">
-            {{ name }}
-          </button>
+          <template v-for="(preset, name) in allPresets" :key="name">
+            <div class="preset-item">
+              <button @click="loadPreset(name)"
+                      :class="['preset-btn', { 'preset-selected': selectedPreset === name, 'custom-preset': !preset.builtin }]">
+                {{ name }}
+              </button>
+              <button v-if="!preset.builtin"
+                      @click.stop="deletePreset(name)"
+                      class="preset-delete-btn"
+                      title="Delete preset">×</button>
+            </div>
+          </template>
           <span class="preset-divider">|</span>
+          <button @click="openSavePreset" class="preset-btn action-btn" title="Save current composition as preset">
+            💾 Save Preset
+          </button>
           <button @click="openJsonImport" class="preset-btn action-btn" title="Import composition from JSON">
             📋 Import JSON
           </button>
@@ -1509,6 +1542,47 @@ const parsedResults = computed(() => {
       </div>
     </div>
   </transition>
+
+  <!-- Save Preset Modal -->
+  <transition name="modal-fade">
+    <div v-if="showSavePreset" class="modal-overlay" @click.self="showSavePreset = false">
+      <div class="modal-content save-preset-modal">
+        <div class="modal-header">
+          <h3>💾 Save as Preset</h3>
+          <button class="modal-close" @click="showSavePreset = false">×</button>
+        </div>
+
+        <div class="modal-body">
+          <p class="modal-help">
+            Save the current composition as a custom preset for quick access later.
+          </p>
+
+          <div class="preset-name-input">
+            <label>Preset Name:</label>
+            <input
+              type="text"
+              v-model="newPresetName"
+              placeholder="My Custom Alloy"
+              @keydown.enter="saveAsPreset"
+              autofocus
+            />
+          </div>
+
+          <div class="preset-preview">
+            <span class="preview-label">Composition:</span>
+            <span class="preview-elements">
+              {{ Object.entries(manualComp).map(([el, val]) => `${el}: ${val}%`).join(', ') }}
+            </span>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="cancel-btn" @click="showSavePreset = false">Cancel</button>
+          <button class="import-btn" @click="saveAsPreset" :disabled="!newPresetName.trim()">Save Preset</button>
+        </div>
+      </div>
+    </div>
+  </transition>
 </template>
 
 <style scoped>
@@ -1582,6 +1656,106 @@ const parsedResults = computed(() => {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.2);
   box-shadow: none;
+}
+
+/* Preset item with delete button */
+.preset-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.preset-delete-btn {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  background: #ff4757;
+  border: none;
+  border-radius: 50%;
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preset-item:hover .preset-delete-btn {
+  opacity: 1;
+}
+
+.preset-delete-btn:hover {
+  background: #ff2f4a;
+  transform: scale(1.1);
+}
+
+.preset-btn.custom-preset {
+  background: rgba(255, 215, 0, 0.1);
+  border-color: rgba(255, 215, 0, 0.3);
+}
+
+.preset-btn.custom-preset:hover {
+  background: rgba(255, 215, 0, 0.2);
+  border-color: rgba(255, 215, 0, 0.5);
+}
+
+.preset-btn.custom-preset.preset-selected {
+  background: rgba(255, 215, 0, 0.3);
+  border-color: #ffd700;
+  color: #ffd700;
+}
+
+/* Save Preset Modal */
+.save-preset-modal {
+  max-width: 400px;
+}
+
+.preset-name-input {
+  margin-bottom: var(--space-md);
+}
+
+.preset-name-input label {
+  display: block;
+  margin-bottom: var(--space-xs);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.preset-name-input input {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-glass);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+}
+
+.preset-name-input input:focus {
+  outline: none;
+  border-color: #00d4ff;
+}
+
+.preset-preview {
+  padding: var(--space-sm);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+}
+
+.preset-preview .preview-label {
+  color: var(--text-muted);
+  margin-right: var(--space-xs);
+}
+
+.preset-preview .preview-elements {
+  color: var(--text-secondary);
 }
 
 /* === EVAL CONTROLS === */
