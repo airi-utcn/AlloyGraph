@@ -1,5 +1,7 @@
 from typing import Dict, Any
 
+from ..config.alloy_parameters import classify_tcp_risk
+
 # Physical constants
 ATOMIC_WEIGHTS = {
     "Ni": 58.69, "Co": 58.93, "Cr": 52.00, "Mo": 95.95, "W": 183.84,
@@ -23,6 +25,42 @@ ELEMENT_DENSITIES = {
     "Fe": 7.87, "Hf": 13.31, "Zr": 6.51, "Ru": 12.37, "V": 6.11,
     "Mn": 7.21, "Si": 2.33, "Cu": 8.96, "C": 2.26, "B": 2.34
 }
+
+# Elemental elastic moduli (GPa) for rule-of-mixtures calculation
+ELEMENTAL_MODULI = {
+    "Ni": 200.0, "Cr": 279.0, "Co": 209.0, "Al": 70.0,
+    "Ti": 116.0, "Mo": 329.0, "W": 411.0, "Fe": 211.0,
+    "Ta": 186.0, "Re": 463.0, "Nb": 105.0, "Hf": 78.0,
+    "Mn": 198.0, "Si": 130.0,
+}
+
+
+def calculate_em_rule_of_mixtures(composition: Dict[str, float]) -> float:
+    """Calculate Elastic Modulus using Voigt-Reuss-Hill (VRH) average."""
+    total_wt = sum(composition.get(el, 0) for el in ELEMENTAL_MODULI if composition.get(el, 0) > 0)
+    if total_wt <= 0:
+        return 200.0  # Fallback to pure Ni
+
+    # Reuss bound (harmonic mean — lower bound)
+    inv_sum = sum(
+        (composition.get(element, 0) / total_wt) / modulus
+        for element, modulus in ELEMENTAL_MODULI.items()
+        if composition.get(element, 0) > 0
+    )
+    if inv_sum <= 0:
+        return 200.0
+    reuss = 1.0 / inv_sum
+
+    # Voigt bound (arithmetic mean — upper bound)
+    voigt = sum(
+        (composition.get(element, 0) / total_wt) * modulus
+        for element, modulus in ELEMENTAL_MODULI.items()
+        if composition.get(element, 0) > 0
+    )
+
+    # Hill average (midpoint)
+    vrh = (voigt + reuss) / 2.0
+    return round(vrh, 1)
 
 
 def wt_to_at_percent(composition: Dict[str, float]) -> Dict[str, float]:
@@ -50,14 +88,18 @@ def calculate_md_avg(at_percent: Dict[str, float]) -> float:
 
 
 def calculate_density(composition: Dict[str, float]) -> float:
-    """Calculate alloy density using rule of mixtures."""
+    """Calculate alloy density using inverse rule of mixtures"""
     total_wt = sum(composition.values())
     if total_wt == 0:
         return 8.0
-    return round(sum(
-        (wt / total_wt) * ELEMENT_DENSITIES.get(el, 8.0)
+    inv_sum = sum(
+        (wt / total_wt) / ELEMENT_DENSITIES.get(el, 8.0)
         for el, wt in composition.items()
-    ), 3)
+        if ELEMENT_DENSITIES.get(el, 8.0) > 0
+    )
+    if inv_sum <= 0:
+        return 8.0
+    return round(1.0 / inv_sum, 3)
 
 
 def estimate_gamma_prime_vol_pct(at_percent: Dict[str, float]) -> float:
@@ -80,7 +122,10 @@ def estimate_gamma_prime_vol_pct(at_percent: Dict[str, float]) -> float:
     # Weighted γ' formers (calibrated to CALPHAD partitioning)
     effective_formers = 0.75*al + 1.20*ti + 1.30*ta + 1.05*nb + 0.5*v
 
-    # Matrix solubility limit (Co increases, Fe decreases)
+    # Matrix solubility limit: higher value → more formers dissolve → LESS γ'
+    # +Co: expands solubility (slight γ' suppression at high Co)
+    # -Fe: lowers solubility → more γ' (calibrated for IN718; see note below)
+    # +Cr: γ-matrix stabilizer, raises solubility → less γ' (physically correct)
     solubility_limit = 2.0 + 0.04*co - 0.05*fe + 0.03*cr
 
     excess_formers = max(0, effective_formers - solubility_limit)
@@ -97,7 +142,7 @@ def estimate_gamma_prime_vol_pct(at_percent: Dict[str, float]) -> float:
 # Partitioning coefficients k = C_γ'/C_γ (Reed, Pollock)
 PARTITION_COEFFS = {
     "Al": 4.0, "Ti": 6.0, "Ta": 4.0, "Nb": 3.0, "Hf": 2.0, "Ni": 1.1,
-    "Co": 0.2, "Cr": 0.1, "Mo": 0.3, "W": 0.4, "Re": 0.1, "Ru": 0.4, "Fe": 0.2, "V": 0.2
+    "Co": 0.6, "Cr": 0.1, "Mo": 0.3, "W": 0.4, "Re": 0.1, "Ru": 0.4, "Fe": 0.3, "V": 0.3
 }
 
 def estimate_partitioning(at_percent: Dict[str, float], gamma_prime_vol_frac: float) -> tuple[Dict[str, float], Dict[str, float]]:
@@ -113,6 +158,14 @@ def estimate_partitioning(at_percent: Dict[str, float], gamma_prime_vol_frac: fl
         denom = (f * k) + (1.0 - f) or 1.0
         c_gamma[el] = c_alloy / denom
         c_gamma_prime[el] = c_gamma[el] * k
+
+    # Normalize phase compositions to sum to 100%
+    total_gamma = sum(c_gamma.values())
+    total_gp = sum(c_gamma_prime.values())
+    if total_gamma > 0:
+        c_gamma = {el: v / total_gamma * 100 for el, v in c_gamma.items()}
+    if total_gp > 0:
+        c_gamma_prime = {el: v / total_gp * 100 for el, v in c_gamma_prime.items()}
 
     return c_gamma, c_gamma_prime
 
@@ -237,8 +290,8 @@ def compute_alloy_features(alloy_or_comp: Dict[str, Any]) -> Dict[str, Any]:
     lattice_mismatch = calculate_lattice_mismatch(c_gamma, c_gamma_prime)
     vec = calculate_vec(at_percent)
 
-    # TCP risk (Morinaga threshold: Md_γ > 0.93)
-    tcp_risk = "high" if md_gamma_matrix > 0.93 else "medium" if md_gamma_matrix > 0.90 else "low"
+    # TCP risk
+    tcp_risk = classify_tcp_risk(md_gamma_matrix, md_avg_global)
 
     # Strengthening mechanisms
     sss_coeff = calculate_solid_solution_strengthening_coeff(c_gamma)

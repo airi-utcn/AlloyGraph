@@ -6,7 +6,6 @@ import traceback
 
 from alloy_crew.alloy_evaluator import AlloyEvaluationCrew
 from alloy_crew.alloy_designer import IterativeDesignCrew
-from services.config import LLMConfig
 from services.chat_service import stream_chat_response
 
 import logging
@@ -31,7 +30,7 @@ def validate_alloy():
     composition = data.get('composition')
     temp = data.get('temp', 20)
     processing = data.get('processing', 'cast')
-    llm = data.get('llm', f"groq/{LLMConfig.MODEL}")
+    llm = data.get('llm')
 
     if not composition:
         return jsonify({"error": "No composition provided"}), 400
@@ -56,6 +55,10 @@ def validate_alloy():
             "penalty_score": result.get("penalty_score", 0.0),
             "corrections_applied": result.get("corrections_applied", []),
             "corrections_explanation": result.get("corrections_explanation", ""),
+            "analyst_reasoning": result.get("analyst_reasoning", ""),
+            "reviewer_assessment": result.get("reviewer_assessment", ""),
+            "investigation_findings": result.get("investigation_findings", ""),
+            "source_reliability": result.get("source_reliability", ""),
         }
 
         # Include error field if present
@@ -75,20 +78,21 @@ def design():
     
     # Extract target_props as a dict
     target_props = data.get('target_props', {})
-    
+    target_props = {k: v for k, v in target_props.items() if v and float(v) > 0}
+
     # Fallback to individual params for backward compatibility
     if not target_props:
         target_props = {'Yield Strength': data.get('yield_strength', 1000)}
-        if data.get('tensile_strength', 0) > 0:
-            target_props['Tensile Strength'] = data.get('tensile_strength')
-        if data.get('elongation', 0) > 0:
-            target_props['Elongation'] = data.get('elongation')
-        if data.get('elastic_modulus', 0) > 0:
-            target_props['Elastic Modulus'] = data.get('elastic_modulus')
-        if data.get('density', 99) < 99:
-            target_props['Density'] = data.get('density')
-        if data.get('gamma_prime', 0) > 0:
-            target_props['Gamma Prime'] = data.get('gamma_prime')
+        if data.get('tensile_strength') is not None:
+            target_props['Tensile Strength'] = data['tensile_strength']
+        if data.get('elongation') is not None:
+            target_props['Elongation'] = data['elongation']
+        if data.get('elastic_modulus') is not None:
+            target_props['Elastic Modulus'] = data['elastic_modulus']
+        if data.get('density') and float(data['density']) > 0:
+            target_props['Density'] = data['density']
+        if data.get('gamma_prime') and float(data['gamma_prime']) > 0:
+            target_props['Gamma Prime'] = data['gamma_prime']
     
     processing = data.get('processing', 'cast')
     temperature = data.get('temp', 900)
@@ -122,7 +126,7 @@ def design():
             "confidence": result.get("confidence", {}),
             "design_status": result.get("design_status", "success"),
             "composition_status": composition_status,
-            "status": result.get("status", "UNKNOWN"),  # ✅ Add PASS/REJECT/FAIL status
+            "status": result.get("status", "UNKNOWN"),
             "issues": result.get("issues", []),
             "recommendations": result.get("recommendations", []),
             "explanation": result.get("explanation", ""),
@@ -131,6 +135,10 @@ def design():
             "penalty_score": result.get("penalty_score", 0.0),
             "corrections_applied": result.get("corrections_applied", []),
             "corrections_explanation": result.get("corrections_explanation", ""),
+            "analyst_reasoning": result.get("analyst_reasoning", ""),
+            "reviewer_assessment": result.get("reviewer_assessment", ""),
+            "investigation_findings": result.get("investigation_findings", ""),
+            "source_reliability": result.get("source_reliability", ""),
         }
 
         # Include error field if present (for backwards compatibility)

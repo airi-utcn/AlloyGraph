@@ -142,7 +142,7 @@ def load_data(filepath: str, target_key: str, bounds: tuple = None,
                     row['target'] = val
                     row['alloy_name'] = alloy_name
                     rows.append(row)
-            except (json.JSONDecodeError, Exception):
+            except Exception:
                 continue
 
     df = pd.DataFrame(rows)
@@ -330,12 +330,7 @@ def load_tuned_params(model_id: str, models_dir: str) -> Tuple[Dict, Dict]:
 
 if __name__ == "__main__":
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    DATA_FILE = os.path.join(current_dir, "training_data", "final_alloy_data_enriched.jsonl")
-
-    # Use v2 if available
-    v2_file = os.path.join(current_dir, "training_data", "final_alloy_data_enriched_v2.jsonl")
-    if os.path.exists(v2_file):
-        DATA_FILE = v2_file
+    DATA_FILE = os.path.join(current_dir, "training_data", "train_77alloys.jsonl")
 
     OUTPUT_DIR = os.path.join(current_dir, "saved_models")
     os.makedirs(OUTPUT_DIR, exist_ok=True)
